@@ -1,7 +1,8 @@
 import tweepy
 import requests
 import os
-from datetime import datetime
+from datetime import datetime, timezone
+import pytz
 import time
 from apscheduler.schedulers.background import BackgroundScheduler
 
@@ -16,7 +17,6 @@ def twitter_api():
     api = tweepy.API(auth)
 
     return api
-
 
 def tweet_text_only(message):
     twitter_api().update_status(message)
@@ -49,6 +49,24 @@ def convert_to_local(str) -> str:
     date_time = datetime.strftime(date_time, '%a %b %-d %-I:%M %p')
     return date_time
 
+def is_alert_active(expire_time):
+    '''Checks to see whether alert is active or expired'''
+    
+    # Make python datetime UTC aware
+    utc=pytz.UTC
+    
+    # Convert local expiration time to UTC
+    datetime_object = datetime.strptime(expire_time, '%Y-%m-%dT%H:%M:%S%z')
+    seconds_since_epoch = datetime_object.timestamp()
+    target_time = datetime.utcfromtimestamp(seconds_since_epoch)
+    target_time_utc = target_time.replace(tzinfo=utc)
+
+    # Calculate current time in UTC
+    now_obj = datetime.now(timezone.utc)
+    now_obj_utc = now_obj.replace(tzinfo=utc)
+    
+    return True if now_obj_utc < target_time_utc else False
+
 def extract_alert_data(alert: list[dict]) -> dict:
     _id = alert['properties']['id']
     hyperlink = f'https://alerts-v2.weather.gov/#/?id={_id}'
@@ -58,11 +76,15 @@ def extract_alert_data(alert: list[dict]) -> dict:
     ends = alert['properties']['ends']
     effective = alert['properties']['effective']
     expires = alert['properties']['expires']
+    status = alert['properties']['status']
     
     if ends is None:
         ends = expires 
     
-    message = f'{event} for {locations} from {convert_to_local(onset)} until {convert_to_local(ends)}'
+    if status != 'Test':
+        message = f'{event} for {locations} from {convert_to_local(onset)} until {convert_to_local(ends)}'
+    else:
+        message = ''
     
     return {
         'id': _id,
@@ -83,27 +105,39 @@ def get_alerts(usa_state: str) -> dict:
     return alerts
     
 
-active_alerts_ids = []
-new_alerts_ids = []
+active_alerts = []
+new_alerts = []
 
 def prepare_tweet_alerts_messages() -> list:
-    alerts = get_alerts('wi')
+    global active_alerts
     
-    # Get all IDs
-    ids = list(map(lambda alert: alert['id'], alerts))
+    alerts = get_alerts('sc')
     
-    # Store Alert IDs
-    # If alert ID appears that isn't already in active_alerts_ids, store it in new_alerts_ids
-    new_alerts_ids = []
-    for id in ids:
-        if id not in active_alerts_ids:
-            active_alerts_ids.append(id)
-            new_alerts_ids.append(id)
+    def extract_metadata(alert):
+        return {
+            'id': alert['id'],
+            'expires': alert['expires'],
+            'message': alert['message']
+        }
     
-    # Get messages associated with any new alerts IDs
+    # Get IDs and expiration time only
+    alert_metadata = list(map(extract_metadata, alerts))
+    
+    # Store any new alerts since the script last ran
     new_alerts = []
-    for new_alert_id in new_alerts_ids:
-        new_alerts.append(next(alert for alert in alerts if alert["id"] == new_alert_id))
+    
+    # Add new alerts to active_alerts list if they don't already exist
+    for alert in alert_metadata:
+        if alert['id'] not in list(map(lambda alert: alert['id'], active_alerts)):
+            active_alerts.append(alert)
+            new_alerts.append(alert)
+            
+    # Keep all active alerts and remove all expired alerts
+    active_alerts = list(filter(lambda alert: is_alert_active(alert['expires']), active_alerts)) 
+    
+    print(list(map(lambda new_alert: new_alert['id'], new_alerts)))
+    print(list(map(lambda active_alert: active_alert['id'], active_alerts)))
+    print('----')
     
     new_messages = list(map(lambda new_alert: new_alert['message'], new_alerts))
     
@@ -118,8 +152,8 @@ def log_alerts_messages():
     print(f'{datetime.utcnow()} - Alerts logging ran successfully')
 
 # Initial run of the program - Get all existing alerts and send tweet
-log_alerts_messages()
-#send_tweets_alerts()
+#log_alerts_messages()
+send_tweets_alerts()
 
 # Code for later
 #tweet_image_from_web('https://pbsweather.org/maps/FL/currents/FL-Temps.jpg', 'Current temperatures across Florida')
@@ -128,7 +162,7 @@ log_alerts_messages()
 # Run scheduled task
 if __name__ == '__main__':
     scheduler = BackgroundScheduler()
-    scheduler.add_job(log_alerts_messages, trigger='interval', minutes=10)
+    scheduler.add_job(send_tweets_alerts, trigger='interval', minutes=10)
     scheduler.start()
     
     try:
