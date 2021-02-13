@@ -111,7 +111,7 @@ new_alerts = []
 def prepare_tweet_alerts_messages() -> list:
     global active_alerts
     
-    alerts = get_alerts('sc')
+    alerts = get_alerts('fl')
     
     def extract_metadata(alert):
         return {
