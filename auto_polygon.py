@@ -1,4 +1,4 @@
-import matplotlib.pyplot as plt
+from matplotlib.figure import Figure
 from metpy.plots import USCOUNTIES
 import geopandas
 from cartopy import crs as ccrs
@@ -40,9 +40,8 @@ def create_map(alert):
     data_crs = ccrs.PlateCarree()
 
     # Setup matplotlib figure
-    fig = plt.figure(figsize=(1920/72, 1080/72))
-    ax = fig.add_axes([0, 0, 1, 1], projection=data_crs)
-
+    fig = Figure(figsize=(1920/72, 1080/72))
+    ax = fig.add_axes([0, 0, 1, 1], projection=ccrs.PlateCarree())
     ax.add_image(image, 8)
     ax.set_extent([alert_map_info['west_bound'] - 0.5, alert_map_info['east_bound'] + 0.5, 
                    alert_map_info['south_bound'] - 0.5, alert_map_info['north_bound'] + 0.5], data_crs)
@@ -69,4 +68,4 @@ def create_map(alert):
                  fontweight='bold', fontname='Arial', y=0.95, x=0.03, zorder=11,
                  bbox=dict(facecolor='navy', alpha=1.0, edgecolor='none'))
 
-    plt.savefig('alert_visual.png', dpi=72)
+    fig.savefig('alert_visual.png', dpi=72)
