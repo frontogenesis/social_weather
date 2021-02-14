@@ -49,7 +49,7 @@ def create_map(alert):
     ax.set_adjustable('datalim')
 
     # Setup borders (states, countries, coastlines, etc)
-    ax.add_feature(USCOUNTIES.with_scale('20m'), edgecolor='black', zorder=5, linewidth=0.3)
+    ax.add_feature(USCOUNTIES.with_scale('20m'), edgecolor='gray', zorder=5, linewidth=0.8)
     ax.add_feature(cfeature.STATES.with_scale('10m'), linewidth=3, zorder=5)
     
     # Plot polygon
@@ -62,7 +62,9 @@ def create_map(alert):
                               edgecolor='black', linewidth=4, zorder=1)
 
     # Set title
-    ax.set_title(alert_map_info['type'], loc='left', 
+    title = ('Significant Weather Alert' if alert_map_info['type'] == 'Special Weather Statement' 
+             else alert_map_info['type'])
+    ax.set_title(title, loc='left', 
                  ha='left', va='top', fontsize=72, color='white', 
                  fontweight='bold', fontname='Arial', y=0.95, x=0.03, zorder=11,
                  bbox=dict(facecolor='navy', alpha=1.0, edgecolor='none'))

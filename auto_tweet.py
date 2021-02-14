@@ -21,7 +21,16 @@ def twitter_api():
     return api
 
 def tweet_text_only(message):
+    message = f'{message[:270]} #FLwx'
     twitter_api().update_status(message)
+    
+def tweet_text_and_media(message, media_id):
+    message = f'{message[:270]} #FLwx'
+    twitter_api().update_status(status=message, media_ids=[media_id])
+
+def twitter_media_upload(filename):
+    media = twitter_api().media_upload(filename)
+    return media
 
 def tweet_image_from_web(url, message):
     filename = 'temp.jpg'
@@ -103,15 +112,23 @@ def send_tweet_alerts_messages() -> list:
     global active_alerts
     
     def package_text_and_media(new_alert):
-        new_messages.append(prepare_alert_message(new_alert))
-        create_map(new_alert)
+        if new_alert['geometry'] and new_alert['properties']['messageType'] == 'Alert':
+            create_map(new_alert)
+            media = twitter_media_upload('alert_visual.png')
+            new_messages.append({
+                'message': prepare_alert_message(new_alert), 
+                'media': media.media_id})
+        elif new_alert['properties']['messageType'] == 'Alert':
+            new_messages.append({'message': prepare_alert_message(new_alert)})      
         
+    # Make API call to retrieve alerts    
     alerts = get_alerts('fl')
     
     # Store any new alerts since the script last ran
     new_alerts = []
     
     # Add new alerts to active_alerts list if they don't already exist
+    # Add the new alerts that came in since the script last ran
     for alert in alerts:
         if alert['properties']['id'] not in list(map(lambda alert: alert['properties']['id'], active_alerts)):
             active_alerts.append(alert)
@@ -120,9 +137,9 @@ def send_tweet_alerts_messages() -> list:
     # Keep all active alerts and remove all expired alerts
     active_alerts = list(filter(lambda alert: is_alert_active(alert['properties']['expires']), active_alerts)) 
     
-    print(list(map(lambda new_alert: new_alert['properties']['id'], new_alerts)))
-    print(list(map(lambda active_alert: active_alert['properties']['id'], active_alerts)))
     print('----')
+    print('New Alerts: ', list(map(lambda new_alert: new_alert['properties']['id'], new_alerts)))
+    print('Active Alerts:', list(map(lambda active_alert: active_alert['properties']['id'], active_alerts)))
     
     new_messages = []
     list(map(package_text_and_media, new_alerts))
@@ -130,11 +147,15 @@ def send_tweet_alerts_messages() -> list:
     return new_messages
 
 def log_alerts_messages():
-    [print(message[:280]) for message in send_tweet_alerts_messages() if len(message) > 0]
+    [print(f"{new_tweet['message'][:270], new_tweet['media']} #FLwx") if 'media' in new_tweet 
+     else print(f"{new_tweet['message'][:270]} #FLwx") for new_tweet in send_tweet_alerts_messages()]
+            
     print(f'{datetime.utcnow()} - Alerts logging ran successfully')
     
 def send_tweets_alerts():
-    [tweet_image_from_local('alert_visual.png', tweet[:280]) for tweet in send_tweet_alerts_messages() if len(tweet) > 0]
+    [tweet_text_and_media(new_tweet['message'], new_tweet['media']) if 'media' in new_tweet 
+     else tweet_text_only(new_tweet['message']) for new_tweet in send_tweet_alerts_messages()]
+    
     print(f'{datetime.utcnow()} - Tweet alert code ran successfully!')
 
 # Initial run of the program - Get all existing alerts and send tweet
