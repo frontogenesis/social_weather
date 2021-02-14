@@ -6,8 +6,6 @@ import pytz
 import time
 from apscheduler.schedulers.background import BackgroundScheduler
 
-from auto_polygon import create_map
-
 def twitter_api():
     consumer_key = os.environ.get('TWITTER_CONSUMER_KEY')
     consumer_secret = os.environ.get('TWITTER_CONSUMER_SECRET')
@@ -69,7 +67,7 @@ def is_alert_active(expire_time):
     
     return True if now_obj_utc < target_time_utc else False
 
-def prepare_alert_message(alert: dict) -> str:
+def extract_alert_data(alert: list[dict]) -> dict:
     _id = alert['properties']['id']
     hyperlink = f'https://alerts-v2.weather.gov/#/?id={_id}'
     event = alert['properties']['event']
@@ -88,57 +86,72 @@ def prepare_alert_message(alert: dict) -> str:
     else:
         message = ''
     
-    return message
+    return {
+        'id': _id,
+        'hyperlink': hyperlink,
+        'message': message,
+        'event': event,
+        'locations': locations,
+        'onset': onset,
+        'ends': ends,
+        'effective': effective,
+        'expires': expires
+    }
     
 def get_alerts(usa_state: str) -> dict:
     data = api_get(f'https://api.weather.gov/alerts/active/area/{usa_state.upper()}')
     alerts = data['features']
+    alerts = list(map(extract_alert_data, alerts))
     return alerts
     
 
 active_alerts = []
 new_alerts = []
 
-def send_tweet_alerts_messages() -> list:
+def prepare_tweet_alerts_messages() -> list:
     global active_alerts
     
-    def package_text_and_media(new_alert):
-        new_messages.append(prepare_alert_message(new_alert))
-        create_map(new_alert)
-        
     alerts = get_alerts('fl')
+    
+    def extract_metadata(alert):
+        return {
+            'id': alert['id'],
+            'expires': alert['expires'],
+            'message': alert['message']
+        }
+    
+    # Get IDs and expiration time only
+    alert_metadata = list(map(extract_metadata, alerts))
     
     # Store any new alerts since the script last ran
     new_alerts = []
     
     # Add new alerts to active_alerts list if they don't already exist
-    for alert in alerts:
-        if alert['properties']['id'] not in list(map(lambda alert: alert['properties']['id'], active_alerts)):
+    for alert in alert_metadata:
+        if alert['id'] not in list(map(lambda alert: alert['id'], active_alerts)):
             active_alerts.append(alert)
             new_alerts.append(alert)
             
     # Keep all active alerts and remove all expired alerts
-    active_alerts = list(filter(lambda alert: is_alert_active(alert['properties']['expires']), active_alerts)) 
+    active_alerts = list(filter(lambda alert: is_alert_active(alert['expires']), active_alerts)) 
     
-    print(list(map(lambda new_alert: new_alert['properties']['id'], new_alerts)))
-    print(list(map(lambda active_alert: active_alert['properties']['id'], active_alerts)))
+    print(list(map(lambda new_alert: new_alert['id'], new_alerts)))
+    print(list(map(lambda active_alert: active_alert['id'], active_alerts)))
     print('----')
     
-    new_messages = []
-    list(map(package_text_and_media, new_alerts))
+    new_messages = list(map(lambda new_alert: new_alert['message'], new_alerts))
     
     return new_messages
 
-def log_alerts_messages():
-    [print(message[:280]) for message in send_tweet_alerts_messages() if len(message) > 0]
-    print(f'{datetime.utcnow()} - Alerts logging ran successfully')
-    
 def send_tweets_alerts():
-    [tweet_image_from_local('alert_visual.png', tweet[:280]) for tweet in send_tweet_alerts_messages() if len(tweet) > 0]
+    [tweet_text_only(tweet[:280]) for tweet in prepare_tweet_alerts_messages() if len(tweet) > 0]
     print(f'{datetime.utcnow()} - Tweet alert code ran successfully!')
 
+def log_alerts_messages():
+    [print(message[:280]) for message in prepare_tweet_alerts_messages() if len(message) > 0]
+    print(f'{datetime.utcnow()} - Alerts logging ran successfully')
+
 # Initial run of the program - Get all existing alerts and send tweet
-#log_alerts_messages()
 send_tweets_alerts()
     
 # Run scheduled task
