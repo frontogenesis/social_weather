@@ -7,19 +7,41 @@ from datetime import datetime, timezone
 import pytz
 import time
 import boto3
+from botocore.exceptions import ClientError
+
+from auto_polygon import create_map
+
+dynamodb = boto3.resource('dynamodb')
+table = dynamodb.Table(os.environ['DYNAMODB_TABLE'])
 
 def put_alert(alert):
-    print(alert)
-    dynamodb = boto3.resource('dynamodb')
-    table = dynamodb.Table(os.environ['DYNAMODB_TABLE'])
-    response = table.put_item(Item=alert)
+    response = table.put_item(Item={
+        'id': alert['properties']['id'],
+        'expires': alert['properties']['expires']
+    })
     return response
 
+def get_existing_alerts():
+    try:
+        response = table.scan()
+    except ClientError as e:
+        print(e.response['Error']['Message'])
+    else:
+        return response['Items']
+
+def delete_expired_alert(id):
+    try:
+        response = table.delete_item(Key={'id': id})
+    except ClientError as e:
+        print(e.response['Error']['Message'])
+    else:
+        return response
+
 def twitter_api():
-    consumer_key = os.environ.get('TWITTER_CONSUMER_KEY')
-    consumer_secret = os.environ.get('TWITTER_CONSUMER_SECRET')
-    access_token = os.environ.get('TWITTER_ACCESS_TOKEN')
-    access_token_secret = os.environ.get('TWITTER_ACCESS_TOKEN_SECRET')
+    consumer_key = os.environ['TWITTER_CONSUMER_KEY']
+    consumer_secret = os.environ['TWITTER_CONSUMER_SECRET']
+    access_token = os.environ['TWITTER_ACCESS_TOKEN']
+    access_token_secret = os.environ['TWITTER_ACCESS_TOKEN_SECRET']
 
     auth = tweepy.OAuthHandler(consumer_key, consumer_secret)
     auth.set_access_token(access_token, access_token_secret)
@@ -123,12 +145,7 @@ def get_alerts(usa_state):
     alerts = data['features']
     return alerts
     
-
-active_alerts = []
-new_alerts = []
-
 def send_tweet_alerts_messages():
-    global active_alerts
     
     def package_text_and_media(new_alert):
         message_type = new_alert['properties']['messageType']
@@ -141,7 +158,7 @@ def send_tweet_alerts_messages():
                            if alert_of_interest == event and message_type == 'Alert']
         
         if tweetable_alert and new_alert['geometry']:
-            create_map(new_alert)
+            #create_map(new_alert)
             media = twitter_media_upload('alert_visual.png')
             new_messages.append({'message': prepare_alert_message(new_alert), 
                                  'media': media.media_id})
@@ -150,24 +167,27 @@ def send_tweet_alerts_messages():
         
     # Make API call to retrieve alerts    
     alerts = get_alerts('fl')
-    
+
+    # Retrieve active alerts from the database
+    active_alerts = get_existing_alerts()
+
     # Store any new alerts since the script last ran
     new_alerts = []
     
     # Add new alerts to active_alerts list if they don't already exist
     # Add the new alerts that came in since the script last ran
     for alert in alerts:
-        if alert['properties']['id'] not in list(map(lambda alert: alert['properties']['id'], active_alerts)):
+        if alert['properties']['id'] not in list(map(lambda alert: alert['id'], active_alerts)):
             put_alert(json.loads(json.dumps(alert), parse_float=Decimal))
-            active_alerts.append(alert)
             new_alerts.append(alert)
-            
-    # Keep all active alerts and remove all expired alerts
-    active_alerts = list(filter(lambda alert: is_alert_active(alert['properties']['expires']), active_alerts)) 
-    
+      
+    # Remove expired alerts from database
+    expired_alerts = list(filter(lambda alert: is_alert_active(alert['expires']) == False, active_alerts))
+    [delete_expired_alert(expired_alert['id']) for expired_alert in expired_alerts]
+
     print('----')
     print('New Alerts: ', list(map(lambda new_alert: new_alert['properties']['id'], new_alerts)))
-    print('Active Alerts: ', list(map(lambda active_alert: active_alert['properties']['id'], active_alerts)))
+    print('Active Alerts: ', list(map(lambda active_alert: active_alert['id'], active_alerts)))
     
     new_messages = []
     list(map(package_text_and_media, new_alerts))
