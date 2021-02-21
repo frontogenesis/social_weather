@@ -1,12 +1,19 @@
 import tweepy
 import requests
 import os
+from decimal import Decimal
+import json
 from datetime import datetime, timezone
 import pytz
 import time
-from apscheduler.schedulers.background import BackgroundScheduler
+import boto3
 
-from auto_polygon import create_map
+def put_alert(alert):
+    print(alert)
+    dynamodb = boto3.resource('dynamodb')
+    table = dynamodb.Table(os.environ['DYNAMODB_TABLE'])
+    response = table.put_item(Item=alert)
+    return response
 
 def twitter_api():
     consumer_key = os.environ.get('TWITTER_CONSUMER_KEY')
@@ -64,7 +71,7 @@ def api_get(url):
     
     return response.json()
 
-def convert_to_local(str) -> str:
+def convert_to_local(str):
     if str is None:
         return 'unspecified'
     
@@ -72,7 +79,7 @@ def convert_to_local(str) -> str:
     date_time = datetime.strftime(date_time, '%a %b %-d %-I:%M %p')
     return date_time
 
-def is_alert_active(expire_time: str) -> bool:
+def is_alert_active(expire_time):
     '''Checks to see whether alert is active or expired'''
     
     # Make python datetime UTC aware
@@ -90,7 +97,7 @@ def is_alert_active(expire_time: str) -> bool:
     
     return True if now_obj_utc < target_time_utc else False
 
-def prepare_alert_message(alert: dict) -> str:
+def prepare_alert_message(alert):
     _id = alert['properties']['id']
     hyperlink = f'https://alerts-v2.weather.gov/#/?id={_id}'
     event = alert['properties']['event']
@@ -111,7 +118,7 @@ def prepare_alert_message(alert: dict) -> str:
     
     return message
     
-def get_alerts(usa_state: str) -> dict:
+def get_alerts(usa_state):
     data = api_get(f'https://api.weather.gov/alerts/active/area/{usa_state.upper()}')
     alerts = data['features']
     return alerts
@@ -120,7 +127,7 @@ def get_alerts(usa_state: str) -> dict:
 active_alerts = []
 new_alerts = []
 
-def send_tweet_alerts_messages() -> list:
+def send_tweet_alerts_messages():
     global active_alerts
     
     def package_text_and_media(new_alert):
@@ -151,6 +158,7 @@ def send_tweet_alerts_messages() -> list:
     # Add the new alerts that came in since the script last ran
     for alert in alerts:
         if alert['properties']['id'] not in list(map(lambda alert: alert['properties']['id'], active_alerts)):
+            put_alert(json.loads(json.dumps(alert), parse_float=Decimal))
             active_alerts.append(alert)
             new_alerts.append(alert)
             
@@ -166,7 +174,7 @@ def send_tweet_alerts_messages() -> list:
     
     return new_messages
 
-def log_alerts_messages():
+def log_alerts_messages(event, context):
     [print(f"{new_tweet['message'][:270], new_tweet['media']} #FLwx") if 'media' in new_tweet 
      else print(f"{new_tweet['message'][:270]} #FLwx") for new_tweet in send_tweet_alerts_messages()]
             
@@ -177,19 +185,3 @@ def send_tweets_alerts():
      else tweet_text_only(new_tweet['message']) for new_tweet in send_tweet_alerts_messages()]
     
     print(f'{datetime.utcnow()} - Tweet alert code ran successfully!')
-
-# Initial run of the program - Get all existing alerts and send tweet
-#log_alerts_messages()
-send_tweets_alerts()
-    
-# Run scheduled task
-if __name__ == '__main__':
-    scheduler = BackgroundScheduler()
-    scheduler.add_job(send_tweets_alerts, trigger='interval', minutes=10)
-    scheduler.start()
-    
-    try:
-        while True:
-            time.sleep(1)
-    except (KeyboardInterrupt, SystemExit):
-        scheduler.shutdown()

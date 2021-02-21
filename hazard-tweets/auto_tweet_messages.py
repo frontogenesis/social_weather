@@ -4,7 +4,6 @@ import os
 from datetime import datetime, timezone
 import pytz
 import time
-from apscheduler.schedulers.background import BackgroundScheduler
 
 def twitter_api():
     consumer_key = os.environ.get('TWITTER_CONSUMER_KEY')
@@ -143,25 +142,9 @@ def prepare_tweet_alerts_messages() -> list:
     
     return new_messages
 
-def send_tweets_alerts():
-    [tweet_text_only(tweet[:280]) for tweet in prepare_tweet_alerts_messages() if len(tweet) > 0]
-    print(f'{datetime.utcnow()} - Tweet alert code ran successfully!')
-
 def log_alerts_messages():
     [print(message[:280]) for message in prepare_tweet_alerts_messages() if len(message) > 0]
     print(f'{datetime.utcnow()} - Alerts logging ran successfully')
 
 # Initial run of the program - Get all existing alerts and send tweet
-send_tweets_alerts()
-    
-# Run scheduled task
-if __name__ == '__main__':
-    scheduler = BackgroundScheduler()
-    scheduler.add_job(send_tweets_alerts, trigger='interval', minutes=10)
-    scheduler.start()
-    
-    try:
-        while True:
-            time.sleep(1)
-    except (KeyboardInterrupt, SystemExit):
-        scheduler.shutdown()
+log_alerts_messages()
