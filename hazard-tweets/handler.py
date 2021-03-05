@@ -152,13 +152,13 @@ def send_tweet_alerts_messages():
         event = new_alert['properties']['event']
         
         alerts_of_interest = ['Tornado Warning', 'Severe Thunderstorm Warning', 'Flash Flood Warning',
-                              'Tornado Watch', 'Severe Thunderstorm Watch']
+                              'Tornado Watch', 'Severe Thunderstorm Watch', 'Flood Warning']
         
         tweetable_alert = [new_alert for alert_of_interest in alerts_of_interest 
                            if alert_of_interest == event and message_type == 'Alert']
         
         if tweetable_alert and new_alert['geometry']:
-            #create_map(new_alert)
+            create_map(new_alert)
             media = twitter_media_upload('alert_visual.png')
             new_messages.append({'message': prepare_alert_message(new_alert), 
                                  'media': media.media_id})

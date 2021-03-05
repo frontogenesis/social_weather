@@ -1,18 +1,47 @@
 import tweepy
 import requests
 import os
+from decimal import Decimal
+import json
 from datetime import datetime, timezone
 import pytz
 import time
-from apscheduler.schedulers.background import BackgroundScheduler
+import boto3
+from botocore.exceptions import ClientError
 
 from auto_polygon import create_map
 
+dynamodb = boto3.resource('dynamodb', region_name='us-east-1')
+table = dynamodb.Table(os.environ['DYNAMODB_TABLE'])
+
+def put_alert(alert):
+    response = table.put_item(Item={
+        'id': alert['properties']['id'],
+        'expires': alert['properties']['expires']
+    })
+    return response
+
+def get_existing_alerts():
+    try:
+        response = table.scan()
+    except ClientError as e:
+        print(e.response['Error']['Message'])
+    else:
+        return response['Items']
+
+def delete_expired_alert(id):
+    try:
+        response = table.delete_item(Key={'id': id})
+    except ClientError as e:
+        print(e.response['Error']['Message'])
+    else:
+        return response
+
 def twitter_api():
-    consumer_key = os.environ.get('TWITTER_CONSUMER_KEY')
-    consumer_secret = os.environ.get('TWITTER_CONSUMER_SECRET')
-    access_token = os.environ.get('TWITTER_ACCESS_TOKEN')
-    access_token_secret = os.environ.get('TWITTER_ACCESS_TOKEN_SECRET')
+    consumer_key = os.environ['TWITTER_CONSUMER_KEY']
+    consumer_secret = os.environ['TWITTER_CONSUMER_SECRET']
+    access_token = os.environ['TWITTER_ACCESS_TOKEN']
+    access_token_secret = os.environ['TWITTER_ACCESS_TOKEN_SECRET']
 
     auth = tweepy.OAuthHandler(consumer_key, consumer_secret)
     auth.set_access_token(access_token, access_token_secret)
@@ -64,7 +93,7 @@ def api_get(url):
     
     return response.json()
 
-def convert_to_local(str) -> str:
+def convert_to_local(str):
     if str is None:
         return 'unspecified'
     
@@ -72,7 +101,7 @@ def convert_to_local(str) -> str:
     date_time = datetime.strftime(date_time, '%a %b %-d %-I:%M %p')
     return date_time
 
-def is_alert_active(expire_time: str) -> bool:
+def is_alert_active(expire_time):
     '''Checks to see whether alert is active or expired'''
     
     # Make python datetime UTC aware
@@ -90,7 +119,7 @@ def is_alert_active(expire_time: str) -> bool:
     
     return True if now_obj_utc < target_time_utc else False
 
-def prepare_alert_message(alert: dict) -> str:
+def prepare_alert_message(alert):
     _id = alert['properties']['id']
     hyperlink = f'https://alerts-v2.weather.gov/#/?id={_id}'
     event = alert['properties']['event']
@@ -111,24 +140,20 @@ def prepare_alert_message(alert: dict) -> str:
     
     return message
     
-def get_alerts(usa_state: str) -> dict:
+def get_alerts(usa_state):
     data = api_get(f'https://api.weather.gov/alerts/active/area/{usa_state.upper()}')
     alerts = data['features']
     return alerts
     
-
-active_alerts = []
-new_alerts = []
-
-def send_tweet_alerts_messages() -> list:
-    global active_alerts
+def send_tweet_alerts_messages():
     
     def package_text_and_media(new_alert):
         message_type = new_alert['properties']['messageType']
         event = new_alert['properties']['event']
         
         alerts_of_interest = ['Tornado Warning', 'Severe Thunderstorm Warning', 'Flash Flood Warning',
-                              'Tornado Watch', 'Severe Thunderstorm Watch']
+                              'Tornado Watch', 'Severe Thunderstorm Watch', 'Flood Warning',
+                              'Rip Current Statement']
         
         tweetable_alert = [new_alert for alert_of_interest in alerts_of_interest 
                            if alert_of_interest == event and message_type == 'Alert']
@@ -143,23 +168,27 @@ def send_tweet_alerts_messages() -> list:
         
     # Make API call to retrieve alerts    
     alerts = get_alerts('fl')
-    
+
+    # Retrieve active alerts from the database
+    active_alerts = get_existing_alerts()
+
     # Store any new alerts since the script last ran
     new_alerts = []
     
     # Add new alerts to active_alerts list if they don't already exist
     # Add the new alerts that came in since the script last ran
     for alert in alerts:
-        if alert['properties']['id'] not in list(map(lambda alert: alert['properties']['id'], active_alerts)):
-            active_alerts.append(alert)
+        if alert['properties']['id'] not in list(map(lambda alert: alert['id'], active_alerts)):
+            put_alert(json.loads(json.dumps(alert), parse_float=Decimal))
             new_alerts.append(alert)
-            
-    # Keep all active alerts and remove all expired alerts
-    active_alerts = list(filter(lambda alert: is_alert_active(alert['properties']['expires']), active_alerts)) 
-    
+      
+    # Remove expired alerts from database
+    expired_alerts = list(filter(lambda alert: is_alert_active(alert['expires']) == False, active_alerts))
+    [delete_expired_alert(expired_alert['id']) for expired_alert in expired_alerts]
+
     print('----')
     print('New Alerts: ', list(map(lambda new_alert: new_alert['properties']['id'], new_alerts)))
-    print('Active Alerts: ', list(map(lambda active_alert: active_alert['properties']['id'], active_alerts)))
+    print('Active Alerts: ', list(map(lambda active_alert: active_alert['id'], active_alerts)))
     
     new_messages = []
     list(map(package_text_and_media, new_alerts))
@@ -177,19 +206,5 @@ def send_tweets_alerts():
      else tweet_text_only(new_tweet['message']) for new_tweet in send_tweet_alerts_messages()]
     
     print(f'{datetime.utcnow()} - Tweet alert code ran successfully!')
-
-# Initial run of the program - Get all existing alerts and send tweet
-#log_alerts_messages()
-send_tweets_alerts()
     
-# Run scheduled task
-if __name__ == '__main__':
-    scheduler = BackgroundScheduler()
-    scheduler.add_job(send_tweets_alerts, trigger='interval', minutes=10)
-    scheduler.start()
-    
-    try:
-        while True:
-            time.sleep(1)
-    except (KeyboardInterrupt, SystemExit):
-        scheduler.shutdown()
+log_alerts_messages()
