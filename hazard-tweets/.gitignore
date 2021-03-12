@@ -1,5 +1,0 @@
-serverless.yml
-node_modules/
-.serverless
-venv
-layers
