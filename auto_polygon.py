@@ -75,7 +75,8 @@ def create_map(alert):
                     'Storm Surge Watch': '#DB7FF7',
                     'Storm Surge Warning': '#B524F7',
                     'Dense Fog Advisory': '#708090',
-                    'Rip Current Statement': '#40E0D0'}
+                    'Rip Current Statement': '#40E0D0',
+                    'Red Flag Warning': '#FF1493'}
 
     image = GoogleTiles()
     data_crs = ccrs.PlateCarree()

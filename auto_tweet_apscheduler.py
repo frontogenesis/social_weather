@@ -93,7 +93,9 @@ def is_alert_active(expire_time: str) -> bool:
 def prepare_alert_message(alert: dict) -> str:
     _id = alert['properties']['id']
     hyperlink = f'https://alerts-v2.weather.gov/#/?id={_id}'
+    is_polygon_based = alert['geometry']
     event = alert['properties']['event']
+    nws_office = alert['properties']['senderName']
     locations = alert['properties']['areaDesc']
     onset = alert['properties']['onset']
     ends = alert['properties']['ends']
@@ -105,8 +107,8 @@ def prepare_alert_message(alert: dict) -> str:
     if ends is None:
         ends = expires 
     
-    if len(headline) > 0:
-        message = headline[0].title()
+    if headline and not is_polygon_based:
+        message = f'{nws_office} issues {event}: {headline[0].title()}'
     else:
         message = f'{event} for {locations} from {convert_to_local(onset)} until {convert_to_local(ends)}'
     
@@ -133,7 +135,8 @@ def send_tweet_alerts_messages() -> list:
                               'Rip Current Statement', 'Flood Watch', 'Flash Flood Watch',
                               'Dense Fog Advisory', 'Hurricane Watch', 'Hurricane Warning',
                               'Tropical Storm Watch', 'Tropical Storm Warning', 'Storm Surge Watch',
-                              'Storm Surge Warning', 'Coastal Flood Watch', 'Coastal Flood Warning']
+                              'Storm Surge Warning', 'Coastal Flood Watch', 'Coastal Flood Warning', 
+                              'Red Flag Warning']
         
         tweetable_alert = [new_alert for alert_of_interest in alerts_of_interest 
                            if alert_of_interest == event]
