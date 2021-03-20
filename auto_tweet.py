@@ -135,7 +135,7 @@ def prepare_alert_message(alert):
         ends = expires 
     
     if len(headline) > 0:
-        message = headline[0].title()
+        message = f'{headline[0].title()}.'
     else:
         message = f'{event} for {locations} from {convert_to_local(onset)} until {convert_to_local(ends)}'
     
