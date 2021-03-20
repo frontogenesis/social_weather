@@ -1,5 +1,4 @@
 from matplotlib.figure import Figure
-import matplotlib.pyplot as plt
 from metpy.plots import USCOUNTIES
 import geopandas
 from cartopy import crs as ccrs
