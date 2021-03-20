@@ -210,5 +210,5 @@ def send_tweets_alerts():
     
     print(f'{datetime.utcnow()} - Tweet alert code ran successfully!')
     
-log_alerts_messages()
-#send_tweets_alerts()
+#log_alerts_messages()
+send_tweets_alerts()
