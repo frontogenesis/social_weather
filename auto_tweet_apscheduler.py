@@ -100,19 +100,20 @@ def prepare_alert_message(alert: dict) -> str:
     effective = alert['properties']['effective']
     expires = alert['properties']['expires']
     status = alert['properties']['status']
+    headline = alert['properties']['parameters']['NWSheadline']
     
     if ends is None:
         ends = expires 
     
-    if status != 'Test':
-        message = f'{event} for {locations} from {convert_to_local(onset)} until {convert_to_local(ends)}'
+    if len(headline) > 0:
+        message = headline[0].title()
     else:
-        message = ''
+        message = f'{event} for {locations} from {convert_to_local(onset)} until {convert_to_local(ends)}'
     
     return message
     
 def get_alerts(usa_state: str) -> dict:
-    data = api_get(f'https://api.weather.gov/alerts/active/area/{usa_state.upper()}')
+    data = api_get(f'https://api.weather.gov/alerts/active?status=actual&message_type=alert&area={usa_state.upper()}')
     alerts = data['features']
     return alerts
     
@@ -128,18 +129,20 @@ def send_tweet_alerts_messages() -> list:
         event = new_alert['properties']['event']
         
         alerts_of_interest = ['Tornado Warning', 'Severe Thunderstorm Warning', 'Flash Flood Warning',
-                              'Tornado Watch', 'Severe Thunderstorm Watch', 'Flood Warning']
+                              'Tornado Watch', 'Severe Thunderstorm Watch', 'Flood Warning', 
+                              'Rip Current Statement', 'Flood Watch', 'Flash Flood Watch',
+                              'Dense Fog Advisory', 'Hurricane Watch', 'Hurricane Warning',
+                              'Tropical Storm Watch', 'Tropical Storm Warning', 'Storm Surge Watch',
+                              'Storm Surge Warning', 'Coastal Flood Watch', 'Coastal Flood Warning']
         
         tweetable_alert = [new_alert for alert_of_interest in alerts_of_interest 
-                           if alert_of_interest == event and message_type == 'Alert']
+                           if alert_of_interest == event]
         
-        if tweetable_alert and new_alert['geometry']:
+        if tweetable_alert:
             create_map(new_alert)
             media = twitter_media_upload('alert_visual.png')
             new_messages.append({'message': prepare_alert_message(new_alert), 
-                                 'media': media.media_id})
-        elif tweetable_alert:
-            new_messages.append({'message': prepare_alert_message(new_alert)})   
+                                 'media': media.media_id})  
         
     # Make API call to retrieve alerts    
     alerts = get_alerts('fl')
@@ -150,7 +153,8 @@ def send_tweet_alerts_messages() -> list:
     # Add new alerts to active_alerts list if they don't already exist
     # Add the new alerts that came in since the script last ran
     for alert in alerts:
-        if alert['properties']['id'] not in list(map(lambda alert: alert['properties']['id'], active_alerts)):
+        if (alert['properties']['id'] not in list(map(lambda alert: alert['properties']['id'], active_alerts)) 
+            and is_alert_active(alert['properties']['expires'])):
             active_alerts.append(alert)
             new_alerts.append(alert)
             
@@ -179,13 +183,13 @@ def send_tweets_alerts():
     print(f'{datetime.utcnow()} - Tweet alert code ran successfully!')
 
 # Initial run of the program - Get all existing alerts and send tweet
-#log_alerts_messages()
-send_tweets_alerts()
+log_alerts_messages()
+#send_tweets_alerts()
     
 # Run scheduled task
 if __name__ == '__main__':
     scheduler = BackgroundScheduler()
-    scheduler.add_job(send_tweets_alerts, trigger='interval', minutes=10)
+    scheduler.add_job(log_alerts_messages, trigger='interval', minutes=1)
     scheduler.start()
     
     try:

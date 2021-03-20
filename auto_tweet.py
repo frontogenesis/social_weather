@@ -141,7 +141,7 @@ def prepare_alert_message(alert):
     return message
     
 def get_alerts(usa_state):
-    data = api_get(f'https://api.weather.gov/alerts/active/area/{usa_state.upper()}')
+    data = api_get(f'https://api.weather.gov/alerts/active?status=actual&message_type=alert&area={usa_state.upper()}')
     alerts = data['features']
     return alerts
     
@@ -152,19 +152,20 @@ def send_tweet_alerts_messages():
         event = new_alert['properties']['event']
         
         alerts_of_interest = ['Tornado Warning', 'Severe Thunderstorm Warning', 'Flash Flood Warning',
-                              'Tornado Watch', 'Severe Thunderstorm Watch', 'Flood Warning',
-                              'Rip Current Statement']
+                              'Tornado Watch', 'Severe Thunderstorm Watch', 'Flood Warning', 
+                              'Rip Current Statement', 'Flood Watch', 'Flash Flood Watch',
+                              'Dense Fog Advisory', 'Hurricane Watch', 'Hurricane Warning',
+                              'Tropical Storm Watch', 'Tropical Storm Warning', 'Storm Surge Watch',
+                              'Storm Surge Warning', 'Coastal Flood Watch', 'Coastal Flood Warning']
         
         tweetable_alert = [new_alert for alert_of_interest in alerts_of_interest 
-                           if alert_of_interest == event and message_type == 'Alert']
+                           if alert_of_interest == event]
         
         if tweetable_alert and new_alert['geometry']:
             create_map(new_alert)
             media = twitter_media_upload('alert_visual.png')
             new_messages.append({'message': prepare_alert_message(new_alert), 
-                                 'media': media.media_id})
-        elif tweetable_alert:
-            new_messages.append({'message': prepare_alert_message(new_alert)})   
+                                 'media': media.media_id})  
         
     # Make API call to retrieve alerts    
     alerts = get_alerts('fl')
@@ -175,10 +176,12 @@ def send_tweet_alerts_messages():
     # Store any new alerts since the script last ran
     new_alerts = []
     
-    # Add new alerts to active_alerts list if they don't already exist
+    # Add new alerts to active_alerts list if they don't already exist and
+    # Double-check to make sure any of the new alerts aren't already expired
     # Add the new alerts that came in since the script last ran
     for alert in alerts:
-        if alert['properties']['id'] not in list(map(lambda alert: alert['id'], active_alerts)):
+        if (alert['properties']['id'] not in list(map(lambda alert: alert['id'], active_alerts))
+        and is_alert_active(alert['properties']['expires'])):
             put_alert(json.loads(json.dumps(alert), parse_float=Decimal))
             new_alerts.append(alert)
       
@@ -207,5 +210,5 @@ def send_tweets_alerts():
     
     print(f'{datetime.utcnow()} - Tweet alert code ran successfully!')
     
-#log_alerts_messages()
-send_tweets_alerts()
+log_alerts_messages()
+#send_tweets_alerts()
