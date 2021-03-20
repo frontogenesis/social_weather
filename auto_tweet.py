@@ -129,6 +129,7 @@ def prepare_alert_message(alert):
     effective = alert['properties']['effective']
     expires = alert['properties']['expires']
     status = alert['properties']['status']
+    headline = alert['properties']['parameters']['NWSheadline']
     
     if ends is None:
         ends = expires 
