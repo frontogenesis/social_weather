@@ -133,10 +133,10 @@ def prepare_alert_message(alert):
     if ends is None:
         ends = expires 
     
-    if status != 'Test':
-        message = f'{event} for {locations} from {convert_to_local(onset)} until {convert_to_local(ends)}'
+    if len(headline) > 0:
+        message = headline[0].title()
     else:
-        message = ''
+        message = f'{event} for {locations} from {convert_to_local(onset)} until {convert_to_local(ends)}'
     
     return message
     
@@ -161,7 +161,7 @@ def send_tweet_alerts_messages():
         tweetable_alert = [new_alert for alert_of_interest in alerts_of_interest 
                            if alert_of_interest == event]
         
-        if tweetable_alert and new_alert['geometry']:
+        if tweetable_alert:
             create_map(new_alert)
             media = twitter_media_upload('alert_visual.png')
             new_messages.append({'message': prepare_alert_message(new_alert), 
