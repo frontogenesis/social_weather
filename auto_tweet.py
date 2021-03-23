@@ -3,11 +3,10 @@ import requests
 import os
 from decimal import Decimal
 import json
-from datetime import datetime, timezone
-import pytz
-import time
+from datetime import datetime
 
 from db import Database
+from helpers import convert_to_local, is_alert_active
 from auto_polygon import create_map
 
 def twitter_api():
@@ -65,32 +64,6 @@ def api_get(url):
         raise requests.HTTPError(f'Error accessing {response.request.url}. Status code: {response.requests.status_code}')
     
     return response.json()
-
-def convert_to_local(str):
-    if str is None:
-        return 'unspecified'
-    
-    date_time = datetime.strptime(str, "%Y-%m-%dT%H:%M:%S%z")
-    date_time = datetime.strftime(date_time, '%a %b %-d %-I:%M %p')
-    return date_time
-
-def is_alert_active(expire_time):
-    '''Checks to see whether alert is active or expired'''
-    
-    # Make python datetime UTC aware
-    utc=pytz.UTC
-    
-    # Convert local expiration time to UTC
-    datetime_object = datetime.strptime(expire_time, '%Y-%m-%dT%H:%M:%S%z')
-    seconds_since_epoch = datetime_object.timestamp()
-    target_time = datetime.utcfromtimestamp(seconds_since_epoch)
-    target_time_utc = target_time.replace(tzinfo=utc)
-
-    # Calculate current time in UTC
-    now_obj = datetime.now(timezone.utc)
-    now_obj_utc = now_obj.replace(tzinfo=utc)
-    
-    return True if now_obj_utc < target_time_utc else False
 
 def prepare_alert_message(alert):
     _id = alert['properties']['id']
@@ -189,5 +162,5 @@ def send_tweets_alerts():
     
     print(f'{datetime.utcnow()} - Tweet alert code ran successfully!')
     
-#log_alerts_messages()
-send_tweets_alerts()
+log_alerts_messages()
+#send_tweets_alerts()
