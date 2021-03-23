@@ -31,28 +31,3 @@ class Database:
             print(e.response['Error']['Message'])
         else:
             return response
-        
-
-
-# def put_alert(alert):
-#     response = table.put_item(Item={
-#         'id': alert['properties']['id'],
-#         'expires': alert['properties']['expires']
-#     })
-#     return response
-
-# def get_existing_alerts():
-#     try:
-#         response = table.scan()
-#     except ClientError as e:
-#         print(e.response['Error']['Message'])
-#     else:
-#         return response['Items']
-
-# def delete_expired_alert(id):
-#     try:
-#         response = table.delete_item(Key={'id': id})
-#     except ClientError as e:
-#         print(e.response['Error']['Message'])
-#     else:
-#         return response
