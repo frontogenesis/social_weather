@@ -6,36 +6,9 @@ import json
 from datetime import datetime, timezone
 import pytz
 import time
-import boto3
-from botocore.exceptions import ClientError
 
+from db import Database
 from auto_polygon import create_map
-
-dynamodb = boto3.resource('dynamodb', region_name='us-east-1')
-table = dynamodb.Table(os.environ['DYNAMODB_TABLE'])
-
-def put_alert(alert):
-    response = table.put_item(Item={
-        'id': alert['properties']['id'],
-        'expires': alert['properties']['expires']
-    })
-    return response
-
-def get_existing_alerts():
-    try:
-        response = table.scan()
-    except ClientError as e:
-        print(e.response['Error']['Message'])
-    else:
-        return response['Items']
-
-def delete_expired_alert(id):
-    try:
-        response = table.delete_item(Key={'id': id})
-    except ClientError as e:
-        print(e.response['Error']['Message'])
-    else:
-        return response
 
 def twitter_api():
     consumer_key = os.environ['TWITTER_CONSUMER_KEY']
@@ -131,7 +104,9 @@ def prepare_alert_message(alert):
     effective = alert['properties']['effective']
     expires = alert['properties']['expires']
     status = alert['properties']['status']
-    headline = alert['properties']['parameters']['NWSheadline']
+    headline = (
+        alert['properties']['parameters']['NWSheadline'] 
+        if 'NWSheadline' in alert['properties']['parameters'].keys() else None)
     
     if ends is None:
         ends = expires 
@@ -175,7 +150,7 @@ def send_tweet_alerts_messages():
     alerts = get_alerts('fl')
 
     # Retrieve active alerts from the database
-    active_alerts = get_existing_alerts()
+    active_alerts = Database.get_existing_alerts()
 
     # Store any new alerts since the script last ran
     new_alerts = []
@@ -186,12 +161,12 @@ def send_tweet_alerts_messages():
     for alert in alerts:
         if (alert['properties']['id'] not in list(map(lambda alert: alert['id'], active_alerts))
         and is_alert_active(alert['properties']['expires'])):
-            put_alert(json.loads(json.dumps(alert), parse_float=Decimal))
+            Database.put_alert(json.loads(json.dumps(alert), parse_float=Decimal))
             new_alerts.append(alert)
       
     # Remove expired alerts from database
     expired_alerts = list(filter(lambda alert: is_alert_active(alert['expires']) == False, active_alerts))
-    [delete_expired_alert(expired_alert['id']) for expired_alert in expired_alerts]
+    [Database.delete_expired_alert(expired_alert['id']) for expired_alert in expired_alerts]
 
     print('----')
     print('New Alerts: ', list(map(lambda new_alert: new_alert['properties']['id'], new_alerts)))
