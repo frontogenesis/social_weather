@@ -10,3 +10,9 @@ os: linux
 files:
   - source: /
     destination: /home/ubuntu/social_weather
+permissions:
+  - object: /home/ubuntu/social_weather
+    owner: ubuntu
+    group: ubuntu
+    type:
+      - directory
