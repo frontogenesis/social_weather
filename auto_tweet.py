@@ -137,7 +137,7 @@ def prepare_alert_message(alert):
         ends = expires 
     
     if headline and not is_polygon_based:
-        message = f'{event} for {locations}: {headline[0].title()}.'
+        message = f'{nws_office} issues {event}: {headline[0].title()}.'
     else:
         message = f'{event} for {locations} from {convert_to_local(onset)} until {convert_to_local(ends)}.'
     
