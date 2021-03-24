@@ -5,57 +5,13 @@ from decimal import Decimal
 import json
 from datetime import datetime
 
+from social import Twitter
 from db import Database
 from helpers import convert_to_local, is_alert_active
 from auto_polygon import create_map
 
-def twitter_api():
-    consumer_key = os.environ['TWITTER_CONSUMER_KEY']
-    consumer_secret = os.environ['TWITTER_CONSUMER_SECRET']
-    access_token = os.environ['TWITTER_ACCESS_TOKEN']
-    access_token_secret = os.environ['TWITTER_ACCESS_TOKEN_SECRET']
-
-    auth = tweepy.OAuthHandler(consumer_key, consumer_secret)
-    auth.set_access_token(access_token, access_token_secret)
-    api = tweepy.API(auth)
-
-    return api
-
-def tweet_text_only(message):
-    message = f'{message[:270]} #FLwx'
-    try:
-        twitter_api().update_status(message)
-    except tweepy.TweepError as e:
-        print(f'Error message: {e.reason}. Intended tweet: {message}')
-        return
-    
-def tweet_text_and_media(message, media_id):
-    message = f'{message[:270]} #FLwx'
-    try:
-        twitter_api().update_status(status=message, media_ids=[media_id])
-    except tweepy.TweepError as e:
-        print(f'Error message: {e.reason}. Intended media_id: {media_id} Intended tweet:{message}')
-        return
-
-def twitter_media_upload(filename):
-    media = twitter_api().media_upload(filename)
-    return media
-
-def tweet_image_from_web(url, message):
-    filename = 'temp.jpg'
-    request = requests.get(url, stream=True)
-    if request.status_code == 200:
-        with open(filename, 'wb') as image:
-            for chunk in request:
-                image.write(chunk)
-
-        twitter_api().update_with_media(filename, status=message)
-        os.remove(filename)
-    else:
-        print('Unable to download image')
-        
-def tweet_image_from_local(filename, message):
-    twitter_api().update_with_media(filename, message)
+dynamo = Database('DYNAMODB_TABLE')
+tweet = Twitter('ray_hawthorne', '#FLwx')
     
 def api_get(url):
     response = requests.get(url, timeout=30, headers={"User-Agent": "curl/7.61.0"})
@@ -115,7 +71,7 @@ def send_tweet_alerts_messages():
         
         if tweetable_alert:
             create_map(new_alert)
-            media = twitter_media_upload('alert_visual.png')
+            media = tweet.twitter_media_upload('alert_visual.png')
             new_messages.append({'message': prepare_alert_message(new_alert), 
                                  'media': media.media_id})  
         
@@ -123,7 +79,7 @@ def send_tweet_alerts_messages():
     alerts = get_alerts('fl')
 
     # Retrieve active alerts from the database
-    active_alerts = Database.get_existing_alerts()
+    active_alerts = dynamo.get_all()
 
     # Store any new alerts since the script last ran
     new_alerts = []
@@ -134,12 +90,17 @@ def send_tweet_alerts_messages():
     for alert in alerts:
         if (alert['properties']['id'] not in list(map(lambda alert: alert['id'], active_alerts))
         and is_alert_active(alert['properties']['expires'])):
-            Database.put_alert(json.loads(json.dumps(alert), parse_float=Decimal))
+            dynamo.put(json.loads(json.dumps({
+                'id': alert['properties']['id'],
+                'event': alert['properties']['event'],
+                'areaDesc': alert['properties']['areaDesc'],
+                'expires': alert['properties']['expires']
+            }), parse_float=Decimal))
             new_alerts.append(alert)
       
     # Remove expired alerts from database
     expired_alerts = list(filter(lambda alert: is_alert_active(alert['expires']) == False, active_alerts))
-    [Database.delete_expired_alert(expired_alert['id']) for expired_alert in expired_alerts]
+    [dynamo.delete(expired_alert['id']) for expired_alert in expired_alerts]
 
     print('----')
     print('New Alerts: ', list(map(lambda new_alert: new_alert['properties']['id'], new_alerts)))
@@ -157,10 +118,10 @@ def log_alerts_messages():
     print(f'{datetime.utcnow()} - Alerts logging ran successfully')
     
 def send_tweets_alerts():
-    [tweet_text_and_media(new_tweet['message'], new_tweet['media']) if 'media' in new_tweet 
-     else tweet_text_only(new_tweet['message']) for new_tweet in send_tweet_alerts_messages()]
+    [tweet.tweet_text_and_media(new_tweet['message'], new_tweet['media']) if 'media' in new_tweet 
+     else tweet.tweet_text_only(new_tweet['message']) for new_tweet in send_tweet_alerts_messages()]
     
     print(f'{datetime.utcnow()} - Tweet alert code ran successfully!')
     
-log_alerts_messages()
-#send_tweets_alerts()
+#log_alerts_messages()
+send_tweets_alerts()

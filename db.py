@@ -3,30 +3,26 @@ import boto3
 from botocore.exceptions import ClientError
 
 class Database:
-    dynamodb = boto3.resource('dynamodb', region_name='us-east-1')
-    table = dynamodb.Table(os.environ['DYNAMODB_TABLE'])
+    
+    def __init__(self, table):
+        dynamodb = boto3.resource('dynamodb', region_name='us-east-1')
+        self.table = dynamodb.Table(os.environ[table])
 
-    @classmethod
-    def put_alert(cls, alert):
-        response = cls.table.put_item(Item={
-            'id': alert['properties']['id'],
-            'expires': alert['properties']['expires']
-        })
+    def put(self, items):
+        response = self.table.put_item(Item=items)
         return response
 
-    @classmethod
-    def get_existing_alerts(cls):
+    def get_all(self):
         try:
-            response = cls.table.scan()
+            response = self.table.scan()
         except ClientError as e:
             print(e.response['Error']['Message'])
         else:
             return response['Items']
 
-    @classmethod
-    def delete_expired_alert(cls, id):
+    def delete(self, id):
         try:
-            response = cls.table.delete_item(Key={'id': id})
+            response = self.table.delete_item(Key={'id': id})
         except ClientError as e:
             print(e.response['Error']['Message'])
         else:
