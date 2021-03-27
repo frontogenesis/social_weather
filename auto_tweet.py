@@ -122,6 +122,7 @@ def send_tweets_alerts():
      else tweet.tweet_text_only(new_tweet['message']) for new_tweet in send_tweet_alerts_messages()]
     
     print(f'{datetime.utcnow()} - Tweet alert code ran successfully!')
-    
-#log_alerts_messages()
-send_tweets_alerts()
+
+if __name__ == '__main__':
+    log_alerts_messages()
+    #send_tweets_alerts()

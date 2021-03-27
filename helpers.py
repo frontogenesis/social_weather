@@ -28,6 +28,9 @@ def is_data_new_enough(datetime64, threshold_mins):
 
     return True if time_delta < threshold_mins else False
 
+def seconds_to_hours(seconds):
+    return seconds // 60
+
 def is_alert_active(expire_time):
     '''Checks to see whether alert is active or expired'''
     
@@ -45,3 +48,13 @@ def is_alert_active(expire_time):
     now_obj_utc = now_obj.replace(tzinfo=utc)
     
     return True if now_obj_utc < target_time_utc else False
+
+def utc_to_iso8601(utc):
+    '''
+    Accepts UTC time in the format returned by datetime module and returns it in ISO8601
+    '''
+    return utc.isoformat()
+
+def iso8601_to_utc(iso8601):
+    '''Accepts ISO8601 time and returns it as a datetime type'''
+    return datetime.strptime(iso8601, "%Y-%m-%dT%H:%M:%S.%f")
