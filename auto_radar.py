@@ -1,4 +1,5 @@
 from datetime import datetime, timedelta
+from random import random
 from siphon.catalog import TDSCatalog
 import cartopy.crs as ccrs
 import xarray as xr
@@ -41,11 +42,10 @@ def is_eligible_for_tweeting(radar_metadata: []):
     time_deltas = [(iso8601_to_utc(time_script_ran) - iso8601_to_utc(data['timestamp'])).seconds for data in radar_metadata]
     time_deltas = [seconds_to_hours(delta) for delta in time_deltas]
     data_with_timedeltas = [dict(data, timedelta=time_deltas[idx]) for idx, data in enumerate(radar_metadata)]
-    eligible_radars = [location for location in data_with_timedeltas if location['timedelta'] >=1 and location['threshold_reached']]
+    eligible_radars = [location for location in data_with_timedeltas if location['timedelta'] >=90 and location['threshold_reached']]
     return eligible_radars
 
 def tweet_message(eligible_data: []):
-    print(eligible_data)
     if eligible_data:
         [tweet.tweet_image_from_web(info['img_url'], f"[{current_day_time()}]: Radar update in the {info['region']} area") for info in eligible_data]
 
@@ -56,7 +56,7 @@ def main():
     ids = [area['id'] for area in areas]
 
     # Set Trigger. Example: 50 dBZ for radar.
-    trigger = 25
+    trigger = 50
 
     # Check to see if radar data from server is new enough to process
     if is_data_new_enough(ds.time.values, 30):
@@ -74,7 +74,6 @@ def main():
             print(f'[AUTOMATION]: {trigger} dBZ radar echo detected in the {area_names[idx]} area' 
             if threshold_reached else 'Trigger not reached.')
         
-        #print(is_eligible_for_tweeting(radar_database.get_all()))
         is_eligible = is_eligible_for_tweeting(radar_database.get_all())
         tweet_message(is_eligible)
 

@@ -52,7 +52,8 @@ class Twitter:
 
     def tweet_image_from_web(self, url, message):
         filename = 'temp.jpg'
-        request = requests.get(url, stream=True)
+        request = requests.get(url, stream=True, headers={"User-Agent": "curl/7.61.0"})
+        
         if request.status_code >= 200 and request.status_code < 400:
             with open(filename, 'wb') as image:
                 for chunk in request:
