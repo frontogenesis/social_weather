@@ -53,7 +53,7 @@ class Twitter:
     def tweet_image_from_web(self, url, message):
         filename = 'temp.jpg'
         request = requests.get(url, stream=True)
-        if request.status_code == 200:
+        if request.status_code >= 200 and request.status_code < 400:
             with open(filename, 'wb') as image:
                 for chunk in request:
                     image.write(chunk)

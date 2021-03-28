@@ -58,3 +58,8 @@ def utc_to_iso8601(utc):
 def iso8601_to_utc(iso8601):
     '''Accepts ISO8601 time and returns it as a datetime type'''
     return datetime.strptime(iso8601, "%Y-%m-%dT%H:%M:%S.%f")
+
+def current_day_time():
+    tz_eastern = pytz.timezone('America/New_York') 
+    datetime_eastern = datetime.now(tz_eastern)
+    return datetime_eastern.strftime('%a %-I:%M %p')
