@@ -1,17 +1,27 @@
-import tweepy
-import requests
 import os
 from decimal import Decimal
 import json
 from datetime import datetime
+import argparse
+
+import tweepy
+import requests
 
 from social import Twitter
 from db import Database
 from helpers import convert_to_local, is_alert_active
 from auto_polygon import create_map
 
-dynamo = Database('DYNAMODB_TABLE')
-tweet = Twitter('ray_hawthorne', '#FLwx')
+parser = argparse.ArgumentParser()
+parser.add_argument('-a', '--account', help='Twitter account name')
+args = parser.parse_args()
+
+if args.account:
+    dynamo = Database(Twitter.creds[args.account]['db_table_env_var'])
+    tweet = Twitter(args.account)
+else:
+    dynamo = Database('DYNAMODB_TABLE')
+    tweet = Twitter('ray_hawthorne')
     
 def api_get(url):
     response = requests.get(url, timeout=30, headers={"User-Agent": "curl/7.61.0"})
@@ -51,42 +61,45 @@ def get_alerts(usa_state):
     data = api_get(f'https://api.weather.gov/alerts/active?status=actual&message_type=alert&area={usa_state.upper()}')
     alerts = data['features']
     return alerts
+
+def aggregate_message_and_media():
+    alerts_of_interest = ['Tornado Warning', 'Severe Thunderstorm Warning', 'Flash Flood Warning',
+                            'Tornado Watch', 'Severe Thunderstorm Watch', 'Flood Warning', 
+                            'Rip Current Statement', 'Flood Watch', 'Flash Flood Watch',
+                            'Dense Fog Advisory', 'Hurricane Watch', 'Hurricane Warning',
+                            'Tropical Storm Watch', 'Tropical Storm Warning', 'Storm Surge Watch',
+                            'Storm Surge Warning', 'Coastal Flood Watch', 'Coastal Flood Warning',
+                            'Red Flag Warning']
+    tweetable_alerts = []
+    new_alerts = retrieve_new_alerts()
+    new_messages = []
+
+    tweetable_alerts = [new_alert for new_alert in new_alerts if new_alert['properties']['event'] in alerts_of_interest]
     
-def send_tweet_alerts_messages():
-    
-    def package_text_and_media(new_alert):
-        message_type = new_alert['properties']['messageType']
-        event = new_alert['properties']['event']
-        
-        alerts_of_interest = ['Tornado Warning', 'Severe Thunderstorm Warning', 'Flash Flood Warning',
-                              'Tornado Watch', 'Severe Thunderstorm Watch', 'Flood Warning', 
-                              'Rip Current Statement', 'Flood Watch', 'Flash Flood Watch',
-                              'Dense Fog Advisory', 'Hurricane Watch', 'Hurricane Warning',
-                              'Tropical Storm Watch', 'Tropical Storm Warning', 'Storm Surge Watch',
-                              'Storm Surge Warning', 'Coastal Flood Watch', 'Coastal Flood Warning',
-                              'Red Flag Warning']
-        
-        tweetable_alert = [new_alert for alert_of_interest in alerts_of_interest 
-                           if alert_of_interest == event]
-        
-        if tweetable_alert:
-            create_map(new_alert)
+    if tweetable_alerts:
+        for tweetable_alert in tweetable_alerts:
+            create_map(tweetable_alert)
             media = tweet.twitter_media_upload('alert_visual.png')
-            new_messages.append({'message': prepare_alert_message(new_alert), 
-                                 'media': media.media_id})  
-        
+            new_messages.append({'message': prepare_alert_message(tweetable_alert), 'media': media.media_id})
+    
+    return new_messages
+      
+def retrieve_new_alerts():    
     # Make API call to retrieve alerts    
     alerts = get_alerts('fl')
 
     # Retrieve active alerts from the database
     active_alerts = dynamo.get_all()
 
+    # Remove expired alerts from database
+    expired_alerts = list(filter(lambda alert: is_alert_active(alert['expires']) == False, active_alerts))
+    [dynamo.delete(expired_alert['id']) for expired_alert in expired_alerts]
+
     # Store any new alerts since the script last ran
     new_alerts = []
     
     # Add new alerts to active_alerts list if they don't already exist and
-    # Double-check to make sure any of the new alerts aren't already expired
-    # Add the new alerts that came in since the script last ran
+    # double-check to make sure any of the new alerts aren't already expired
     for alert in alerts:
         if (alert['properties']['id'] not in list(map(lambda alert: alert['id'], active_alerts))
         and is_alert_active(alert['properties']['expires'])):
@@ -97,32 +110,21 @@ def send_tweet_alerts_messages():
                 'expires': alert['properties']['expires']
             }), parse_float=Decimal))
             new_alerts.append(alert)
-      
-    # Remove expired alerts from database
-    expired_alerts = list(filter(lambda alert: is_alert_active(alert['expires']) == False, active_alerts))
-    [dynamo.delete(expired_alert['id']) for expired_alert in expired_alerts]
 
     print('----')
     print('New Alerts: ', list(map(lambda new_alert: new_alert['properties']['id'], new_alerts)))
     print('Active Alerts: ', list(map(lambda active_alert: active_alert['id'], active_alerts)))
     
-    new_messages = []
-    list(map(package_text_and_media, new_alerts))
-    
-    return new_messages
+    return new_alerts
 
 def log_alerts_messages():
-    [print(f"{new_tweet['message'][:270], new_tweet['media']} #FLwx") if 'media' in new_tweet 
-     else print(f"{new_tweet['message'][:270]} #FLwx") for new_tweet in send_tweet_alerts_messages()]
-            
+    [print(f"{message['message'][:270], message['media']}") for message in aggregate_message_and_media()]     
     print(f'{datetime.utcnow()} - Alerts logging ran successfully')
     
 def send_tweets_alerts():
-    [tweet.tweet_text_and_media(new_tweet['message'], new_tweet['media']) if 'media' in new_tweet 
-     else tweet.tweet_text_only(new_tweet['message']) for new_tweet in send_tweet_alerts_messages()]
-    
+    [tweet.tweet_text_and_media(message['message'], message['media']) for message in aggregate_message_and_media()]
     print(f'{datetime.utcnow()} - Tweet alert code ran successfully!')
 
 if __name__ == '__main__':
-    log_alerts_messages()
-    #send_tweets_alerts()
+    #log_alerts_messages()
+    send_tweets_alerts()
