@@ -113,6 +113,6 @@ def create_map(alert):
     ax.set_title(title, loc='left', 
                  ha='left', va='top', fontsize=72, color='white', 
                  fontweight='bold', fontname='Arial', y=0.95, x=0.03, zorder=11,
-                 bbox=dict(facecolor='navy', alpha=1.0, edgecolor='none'))
+                 bbox={'facecolor': 'navy', 'alpha': 1.0, 'edgecolor': 'none', 'boxstyle':'square,pad=0.2'})
     
     fig.savefig('alert_visual.png', dpi=72)

@@ -2,6 +2,15 @@ from datetime import datetime, timezone
 import pytz
 import time
 import numpy as np
+import requests
+
+def api_get(url):
+    response = requests.get(url, timeout=30, headers={"User-Agent": "curl/7.61.0"})
+    
+    if response.status_code != 200:
+        raise requests.HTTPError(f'Error accessing {response.request.url}. Status code: {response.requests.status_code}')
+    
+    return response.json()
 
 def convert_to_local(str):
     '''

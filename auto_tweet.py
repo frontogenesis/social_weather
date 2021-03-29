@@ -9,7 +9,7 @@ import requests
 
 from social import Twitter
 from db import Database
-from helpers import convert_to_local, is_alert_active
+from helpers import convert_to_local, is_alert_active, api_get
 from auto_polygon import create_map
 
 parser = argparse.ArgumentParser()
@@ -20,17 +20,9 @@ if args.account:
     dynamo = Database(Twitter.creds[args.account]['db_table_env_var'])
     tweet = Twitter(args.account)
 else:
-    dynamo = Database('DYNAMODB_TABLE')
-    tweet = Twitter('ray_hawthorne')
+    print('Specify an -a or --account argument')
+    exit()
     
-def api_get(url):
-    response = requests.get(url, timeout=30, headers={"User-Agent": "curl/7.61.0"})
-    
-    if response.status_code != 200:
-        raise requests.HTTPError(f'Error accessing {response.request.url}. Status code: {response.requests.status_code}')
-    
-    return response.json()
-
 def prepare_alert_message(alert):
     _id = alert['properties']['id']
     hyperlink = f'https://alerts-v2.weather.gov/#/?id={_id}'
@@ -58,7 +50,7 @@ def prepare_alert_message(alert):
     return message
     
 def get_alerts(usa_state):
-    data = api_get(f'https://api.weather.gov/alerts/active?status=actual&message_type=alert&area={usa_state.upper()}')
+    data = api_get(f"https://api.weather.gov/alerts/active?status=actual&message_type=alert&{Twitter.creds[args.account]['api_endpoint']}")
     alerts = data['features']
     return alerts
 
