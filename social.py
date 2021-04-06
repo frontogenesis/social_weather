@@ -8,7 +8,7 @@ class Twitter:
     creds = {
         'palmetto_storms': {
             'db_table_env_var': 'DYNAMODB_TABLE_PALMETTO',
-            'logo_filename': 'scetv.jpg',
+            'logo_filename': 'blank.png',
             'hashtag': '#scwx',
             'api_endpoint': 'area=SC',
             'consumer_key': os.environ['TWITTER_CONSUMER_KEY_PALMETTO'],
@@ -18,7 +18,7 @@ class Twitter:
         },
         'ray_hawthorne': {
             'db_table_env_var': 'DYNAMODB_TABLE',
-            'logo_filename': 'fpren.jpg',
+            'logo_filename': 'fpren.png',
             'hashtag': '#FLwx',
             'api_endpoint': 'area=FL',
             'consumer_key': os.environ['TWITTER_CONSUMER_KEY'],

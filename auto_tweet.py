@@ -30,6 +30,7 @@ def prepare_alert_message(alert):
     event = alert['properties']['event']
     nws_office = alert['properties']['senderName']
     locations = alert['properties']['areaDesc']
+    sent = alert['properties']['sent']
     onset = alert['properties']['onset']
     ends = alert['properties']['ends']
     effective = alert['properties']['effective']
@@ -43,9 +44,9 @@ def prepare_alert_message(alert):
         ends = expires 
     
     if headline and not is_polygon_based:
-        message = f'{nws_office} issues {event}: {headline[0].title()}.'
+        message = f'[{convert_to_local(sent)}]: {nws_office} issues {event}: {headline[0].title()}.'
     else:
-        message = f'{event} for {locations} from {convert_to_local(onset)} until {convert_to_local(ends)}.'
+        message = f'[{convert_to_local(sent)}]: {event} for {locations} from {convert_to_local(onset)} until {convert_to_local(ends)}.'
     
     return message
     
@@ -70,7 +71,7 @@ def aggregate_message_and_media():
     
     if tweetable_alerts:
         for tweetable_alert in tweetable_alerts:
-            create_map(tweetable_alert)
+            create_map(tweetable_alert, args.account)
             media = tweet.twitter_media_upload('alert_visual.png')
             new_messages.append({'message': prepare_alert_message(tweetable_alert), 'media': media.media_id})
     

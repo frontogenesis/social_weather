@@ -1,11 +1,16 @@
+from pathlib import Path
+import itertools
+
 from matplotlib.figure import Figure
+import matplotlib.image as image
 from metpy.plots import USCOUNTIES
 import geopandas
 from cartopy import crs as ccrs
 from cartopy.io.img_tiles import GoogleTiles, OSM, Stamen
 import cartopy.feature as cfeature
 from shapely.geometry import shape, Polygon
-import itertools
+
+from social import Twitter
 
 cat_gdf = geopandas.read_file('z_30mr21/z_30mr21.shp')
 
@@ -51,7 +56,7 @@ def calculate_ugc_geography(alert):
         'polygon': counties
     }
 
-def create_map(alert):
+def create_map(alert, info):
     if alert['geometry']:
         alert_map_info = convert_geojson_to_geopandas_df(alert)
     else:
@@ -78,19 +83,19 @@ def create_map(alert):
                     'Rip Current Statement': '#40E0D0',
                     'Red Flag Warning': '#FF1493'}
 
-    image = GoogleTiles()
+    google_tiles = GoogleTiles()
     data_crs = ccrs.PlateCarree()
 
     # Setup matplotlib figure
     fig = Figure(figsize=(1920/72, 1080/72))
     ax = fig.add_axes([0, 0, 1, 1], projection=data_crs)
-    ax.add_image(image, 8)
+    ax.add_image(google_tiles, 8)
     ax.set_extent([alert_map_info['west_bound'] - 0.5, alert_map_info['east_bound'] + 0.5, 
-                   alert_map_info['south_bound'] - 0.5, alert_map_info['north_bound'] + 0.5], data_crs)
+                   alert_map_info['south_bound'] - 0.5, alert_map_info['north_bound'] + 0.6], data_crs)
     ax.set_adjustable('datalim')
 
     # Setup borders (states, countries, coastlines, etc)
-    ax.add_feature(USCOUNTIES.with_scale('20m'), edgecolor='gray', zorder=5, linewidth=0.8)
+    ax.add_feature(USCOUNTIES.with_scale('20m'), edgecolor='gray', zorder=5, linewidth=1.2)
     ax.add_feature(cfeature.STATES.with_scale('10m'), linewidth=3, zorder=5)
     
     # Plot polygon or UGC-based alert
@@ -105,6 +110,11 @@ def create_map(alert):
                                   linewidth=4,  alpha=0.5, zorder=6)
         else:
             continue
+
+    # Branding
+    logo_dir = Path('.') / 'logos'
+    logo = image.imread(f"{logo_dir}/{Twitter.creds[info]['logo_filename']}")
+    fig.figimage(logo, 1300, 20, zorder=10, alpha=1)
 
     # Set title
     title = ('Significant Weather Alert' if alert['properties']['event'] == 'Special Weather Statement' 
