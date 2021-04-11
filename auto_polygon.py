@@ -13,8 +13,59 @@ from shapely.geometry import shape, Polygon
 from social import Twitter
 
 cat_gdf = geopandas.read_file('z_30mr21/z_30mr21.shp')
+ugc_county = geopandas.read_file('c_10nv20/c_10nv20.shp')
+
+def is_ugc_county(ugcs):
+    '''Determines whether alert type is UGC county or UGC zone'''
+    return True if ugcs[0][2] == 'C' else False
+
+def ugc_zone_geography(ugcs):
+    '''Returns latitudes and longitudes from UGC zone-based alerts'''
+    counties = [ugc.replace('Z', '') for ugc in ugcs]
+
+    latitudes = []
+    longitudes = []
+    geometries = []
+    
+    for ugc in counties:
+        latitude = (cat_gdf[cat_gdf['STATE_ZONE'] == ugc]['LAT']).tolist()
+        longitude = (cat_gdf[cat_gdf['STATE_ZONE'] == ugc]['LON']).tolist()
+        geometry = (cat_gdf[cat_gdf['STATE_ZONE'] == ugc]['geometry']).tolist()
+        latitudes.append(latitude)
+        longitudes.append(longitude)
+        geometries.append(geometry)
+        
+    flatten = itertools.chain.from_iterable
+    latitudes = list(flatten(latitudes))
+    longitudes = list(flatten(longitudes))
+
+    return latitudes, longitudes, geometries
+
+def ugc_county_geography(ugcs):
+    '''Returns latitudes and longitudes from UGC county-based alerts'''
+    counties = [int(ugc[-3:]) for ugc in ugcs]
+    state = ugcs[0][0:2]
+
+    latitudes = []
+    longitudes = []
+    geometries = []
+    
+    for ugc in counties:
+        latitude = ugc_county.loc[(ugc_county['STATE'] == state) & (ugc_county['FIPS'].astype(int) % 1000 == ugc)]['LAT'].tolist()
+        longitude = ugc_county.loc[(ugc_county['STATE'] == state) & (ugc_county['FIPS'].astype(int) % 1000 == ugc)]['LON'].tolist()
+        geometry = ugc_county.loc[(ugc_county['STATE'] == state) & (ugc_county['FIPS'].astype(int) % 1000 == ugc)]['geometry']
+        latitudes.append(latitude)
+        longitudes.append(longitude)
+        geometries.append(geometry)
+        
+    flatten = itertools.chain.from_iterable
+    latitudes = list(flatten(latitudes))
+    longitudes = list(flatten(longitudes))
+
+    return latitudes, longitudes, geometries
 
 def convert_geojson_to_geopandas_df(alert_geojson):
+    '''Returns map bounds for polygon-based NWS alerts'''
     alert_geojson['geometry'] = shape(alert_geojson['geometry'])
     gdf = geopandas.GeoDataFrame(alert_geojson).set_geometry('geometry')
     west_bound, south_bound, east_bound, north_bound = gdf['geometry'][0].bounds
@@ -32,28 +83,19 @@ def convert_geojson_to_geopandas_df(alert_geojson):
     }
 
 def calculate_ugc_geography(alert):
-    counties = alert['properties']['geocode']['UGC']
-    counties = [county.replace('Z', '') for county in counties]
+    ugcs = alert['properties']['geocode']['UGC']
 
-    latitudes = []
-    longitudes = []
-    
-    for ugc in counties:
-        latitude = (cat_gdf[cat_gdf['STATE_ZONE'] == ugc]['LAT']).tolist()
-        longitude = (cat_gdf[cat_gdf['STATE_ZONE'] == ugc]['LON']).tolist()
-        latitudes.append(latitude)
-        longitudes.append(longitude)
-        
-    flatten = itertools.chain.from_iterable
-    latitudes = list(flatten(latitudes))
-    longitudes = list(flatten(longitudes))
+    if is_ugc_county(ugcs):
+        latitudes, longitudes, geometries = ugc_county_geography(ugcs)
+    else:
+        latitudes, longitudes, geometries = ugc_zone_geography(ugcs)
     
     return {
         'west_bound': min(longitudes),
         'south_bound': min(latitudes),
         'east_bound': max(longitudes),
         'north_bound': max(latitudes),
-        'polygon': counties
+        'polygon': geometries
     }
 
 def create_map(alert, info):
@@ -97,16 +139,15 @@ def create_map(alert, info):
     # Setup borders (states, countries, coastlines, etc)
     ax.add_feature(USCOUNTIES.with_scale('20m'), edgecolor='gray', zorder=5, linewidth=1.2)
     ax.add_feature(cfeature.STATES.with_scale('10m'), linewidth=3, zorder=5)
-    
-    # Plot polygon or UGC-based alert
+
+    # Plot alerts on the map
     for key in warning_cmap.keys():
         if key == alert['properties']['event'] and alert['geometry']:
             ax.add_geometries(alert_map_info['polygon'], crs=data_crs, facecolor=warning_cmap[key],
                               edgecolor='black', linewidth=4, zorder=1, alpha=0.04)
-        elif key == alert['properties']['event'] and not alert['geometry']:   
-            for ugc in alert_map_info['polygon']:
-                ax.add_geometries(cat_gdf[cat_gdf['STATE_ZONE'] == ugc]['geometry'], crs=data_crs, 
-                                  facecolor=warning_cmap[key], edgecolor='black', 
+        elif key == alert['properties']['event'] and not alert['geometry']:
+            for polys in alert_map_info['polygon']:
+                ax.add_geometries(polys, crs=data_crs, facecolor=warning_cmap[key], edgecolor='black',
                                   linewidth=4,  alpha=0.5, zorder=6)
         else:
             continue
