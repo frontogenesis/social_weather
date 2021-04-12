@@ -37,7 +37,7 @@ def is_data_new_enough(datetime64, threshold_mins):
 
     return True if time_delta < threshold_mins else False
 
-def seconds_to_hours(seconds):
+def seconds_to_mins(seconds):
     return seconds // 60
 
 def is_alert_active(expire_time):
@@ -62,11 +62,21 @@ def utc_to_iso8601(utc):
     '''
     Accepts UTC time in the format returned by datetime module and returns it in ISO8601
     '''
-    return utc.isoformat()
+    return utc.isoformat("T","microseconds")
 
 def iso8601_to_utc(iso8601):
     '''Accepts ISO8601 time and returns it as a datetime type'''
     return datetime.strptime(iso8601, "%Y-%m-%dT%H:%M:%S.%f")
+
+def datetime64_to_datetime(dt64):
+    ''' Takes a numpy datetime64 type and converts to ISO8601'''
+    unix_epoch = np.datetime64(0, 's')
+    one_second = np.timedelta64(1, 's')
+    seconds_since_epoch = (dt64 - unix_epoch) / one_second
+
+    datetime_obj = datetime.utcfromtimestamp(seconds_since_epoch)
+    return utc_to_iso8601(datetime_obj)
+    
 
 def current_day_time():
     tz_eastern = pytz.timezone('America/New_York') 

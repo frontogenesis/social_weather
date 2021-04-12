@@ -8,10 +8,10 @@ import metpy
 
 from social import Twitter
 from db import Database
-from helpers import is_data_new_enough, utc_to_iso8601, iso8601_to_utc, seconds_to_hours, current_day_time
+from helpers import is_data_new_enough, utc_to_iso8601, iso8601_to_utc, datetime64_to_datetime, seconds_to_mins, current_day_time
 
 radar_database = Database('DYNAMODB_TABLE_RADAR')
-tweet = Twitter('ray_hawthorne', '#FLwx')
+#tweet = Twitter('ray_hawthorne')
 
 def get_catalog():
     radar = TDSCatalog('https://thredds.ucar.edu/thredds/catalog/grib/nexrad/composite/unidata/latest.xml')
@@ -39,16 +39,16 @@ def is_threshold_reached(array, threshold):
     return np.any(array[:, :] >= threshold)
 
 def is_eligible_for_tweeting(radar_metadata: []):
-    time_deltas = [(iso8601_to_utc(time_script_ran) - iso8601_to_utc(data['timestamp'])).seconds for data in radar_metadata]
-    time_deltas = [seconds_to_hours(delta) for delta in time_deltas]
+    time_deltas = [(iso8601_to_utc(time_script_ran) - iso8601_to_utc(data['data_time'])).seconds for data in radar_metadata]
+    time_deltas = [seconds_to_mins(delta) for delta in time_deltas]
     data_with_timedeltas = [dict(data, timedelta=time_deltas[idx]) for idx, data in enumerate(radar_metadata)]
-    eligible_radars = [location for location in data_with_timedeltas if location['timedelta'] >=90 and location['threshold_reached']]
+    eligible_radars = [location for location in data_with_timedeltas if location['timedelta'] >= 60 and location['threshold_reached']]
     return eligible_radars
 
 def tweet_message(eligible_data: []):
     if eligible_data:
         [tweet.tweet_image_from_web(info['img_url'], f"[{current_day_time()}]: Radar update in the {info['region']} area") for info in eligible_data]
-
+    
 def main():
     area_names = [area['area'] for area in areas]
     coords = [area['coords'] for area in areas]
@@ -56,26 +56,29 @@ def main():
     ids = [area['id'] for area in areas]
 
     # Set Trigger. Example: 50 dBZ for radar.
-    trigger = 50
+    trigger = 30
 
     # Check to see if radar data from server is new enough to process
     if is_data_new_enough(ds.time.values, 30):
         for idx, place_of_interest in enumerate(coords):
             raw_data = get_grid_values(place_of_interest)
             threshold_reached = bool(is_threshold_reached(raw_data, trigger))
+
             # If threshold reached, save data to database
             radar_database.put(
                 {'id': ids[idx], 
-                'timestamp': time_script_ran, 
+                'timestamp': time_script_ran,
+                'data_time': datetime64_to_datetime(ds.time.values),
                 'region': area_names[idx], 
                 'img_url': url[idx],
-                'threshold_reached': threshold_reached}) if threshold_reached else None   
+                'threshold_reached': threshold_reached}) #if threshold_reached else None   
 
             print(f'[AUTOMATION]: {trigger} dBZ radar echo detected in the {area_names[idx]} area' 
             if threshold_reached else 'Trigger not reached.')
         
         is_eligible = is_eligible_for_tweeting(radar_database.get_all())
-        tweet_message(is_eligible)
+        print(is_eligible)
+        #tweet_message(is_eligible)
 
 # Areas of interest
 areas = [
