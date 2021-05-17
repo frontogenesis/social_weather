@@ -155,15 +155,15 @@ def create_map(alert, info):
     # Branding
     logo_dir = Path('.') / 'logos'
     logo = image.imread(f"{logo_dir}/{Twitter.creds[info]['logo_filename']}")
-    fig.figimage(logo, 1300, 20, zorder=10, alpha=1)
+    fig.figimage(logo, 1605, 20, zorder=10, alpha=1)
 
     # Set title
-    title = ('Significant Weather Alert' if alert['properties']['event'] == 'Special Weather Statement' 
-             else alert['properties']['event'])
+    title = ('SIGNIFICANT WEATHER ALERT' if alert['properties']['event'] == 'Special Weather Statement' 
+             else alert['properties']['event'].upper())
 
     ax.set_title(title, loc='left', 
                  ha='left', va='top', fontsize=72, color='white', 
                  fontweight='bold', fontname='Arial', y=0.95, x=0.03, zorder=11,
-                 bbox={'facecolor': 'navy', 'alpha': 1.0, 'edgecolor': 'none', 'boxstyle':'square,pad=0.2'})
+                 bbox={'facecolor': '#0c3245', 'alpha': 1.0, 'edgecolor': 'none', 'boxstyle':'square,pad=0.2'})
     
     fig.savefig('alert_visual.png', dpi=72)

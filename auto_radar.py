@@ -43,6 +43,9 @@ def is_eligible_for_tweeting(radar_metadata: []):
     time_deltas = [seconds_to_mins(delta) for delta in time_deltas]
     data_with_timedeltas = [dict(data, timedelta=time_deltas[idx]) for idx, data in enumerate(radar_metadata)]
     eligible_radars = [location for location in data_with_timedeltas if location['timedelta'] >= 60 and location['threshold_reached']]
+    
+    # Add time threshold reached to DB
+
     return eligible_radars
 
 def tweet_message(eligible_data: []):
