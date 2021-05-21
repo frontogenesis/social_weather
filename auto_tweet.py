@@ -56,13 +56,7 @@ def get_alerts(usa_state):
     return alerts
 
 def aggregate_message_and_media():
-    alerts_of_interest = ['Tornado Warning', 'Severe Thunderstorm Warning', 'Flash Flood Warning',
-                            'Tornado Watch', 'Severe Thunderstorm Watch', 'Flood Warning', 
-                            'Rip Current Statement', 'Flood Watch', 'Flash Flood Watch',
-                            'Dense Fog Advisory', 'Hurricane Watch', 'Hurricane Warning',
-                            'Tropical Storm Watch', 'Tropical Storm Warning', 'Storm Surge Watch',
-                            'Storm Surge Warning', 'Coastal Flood Watch', 'Coastal Flood Warning',
-                            'Red Flag Warning']
+    alerts_of_interest = ['Tornado Warning', 'Severe Thunderstorm Warning', 'Flash Flood Warning']
     tweetable_alerts = []
     new_alerts = retrieve_new_alerts()
     new_messages = []
