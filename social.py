@@ -5,6 +5,16 @@ import tweepy
 class Twitter:
 
     creds = {
+        'florida_storms': {
+            'db_table_env_var': 'DYNAMODB_TABLE_FLORIDA',
+            'logo_filename': 'fpren.png',
+            'hashtag': '#FLwx',
+            'api_endpoint': 'area=FL',
+            'consumer_key': os.environ['TWITTER_CONSUMER_KEY_FLORIDA'],
+            'consumer_secret': os.environ['TWITTER_CONSUMER_SECRET_FLORIDA'],
+            'access_token': os.environ['TWITTER_ACCESS_TOKEN_FLORIDA'],
+            'access_token_secret': os.environ['TWITTER_ACCESS_TOKEN_SECRET_FLORIDA']
+        },
         'palmetto_storms': {
             'db_table_env_var': 'DYNAMODB_TABLE_PALMETTO',
             'logo_filename': 'blank.png',

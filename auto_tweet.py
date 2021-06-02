@@ -1,11 +1,7 @@
-import os
 from decimal import Decimal
 import json
 from datetime import datetime
 import argparse
-
-import tweepy
-import requests
 
 from social import Twitter
 from db import Database
