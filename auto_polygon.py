@@ -1,16 +1,13 @@
-from pathlib import Path
 import itertools
 
 from matplotlib.figure import Figure
-import matplotlib.image as image
 from metpy.plots import USCOUNTIES
 import geopandas
 from cartopy import crs as ccrs
-from cartopy.io.img_tiles import GoogleTiles, OSM, Stamen
+from cartopy.io.img_tiles import GoogleTiles
 import cartopy.feature as cfeature
-from shapely.geometry import shape, Polygon
-
-from social import Twitter
+from shapely.geometry import shape
+import requests
 
 cat_gdf = geopandas.read_file('z_30mr21/z_30mr21.shp')
 ugc_county = geopandas.read_file('c_10nv20/c_10nv20.shp')
@@ -98,11 +95,15 @@ def calculate_ugc_geography(alert):
         'polygon': geometries
     }
 
-def create_map(alert, info):
-    if alert['geometry']:
-        alert_map_info = convert_geojson_to_geopandas_df(alert)
-    else:
-        alert_map_info = calculate_ugc_geography(alert)
+def get_radar_timestamp():
+    f = requests.get('https://mesonet.agron.iastate.edu/data/gis/images/4326/USCOMP/n0q_0.json').json()
+    validDATE = f['meta']['valid']
+    return validDATE
+
+def create_map(alert):
+    ''' Create the alert map'''
+    alert_map_info = (
+        convert_geojson_to_geopandas_df(alert) if alert['geometry'] else calculate_ugc_geography(alert))
                 
     warning_cmap = {'Flood Watch': '#2E8B57',
                     'Flash Flood Watch': '#2E8B57',
@@ -115,10 +116,6 @@ def create_map(alert, info):
                     'Special Weather Statement': '#FFE4B5',
                     'Tornado Watch': '#FFFF00',
                     'Tornado Warning': '#FF0000',
-                    'Hurricane Watch': '#FF00FF',
-                    'Hurricane Warning': '#DC143C',
-                    'Tropical Storm Watch': '#F08080',
-                    'Tropical Storm Warning': '#B22222',
                     'Storm Surge Watch': '#DB7FF7',
                     'Storm Surge Warning': '#B524F7',
                     'Dense Fog Advisory': '#708090',
@@ -129,7 +126,7 @@ def create_map(alert, info):
     data_crs = ccrs.PlateCarree()
 
     # Setup matplotlib figure
-    fig = Figure(figsize=(1920/72, 1080/72))
+    fig = Figure(figsize=(1280/72, 720/72))
     ax = fig.add_axes([0, 0, 1, 1], projection=data_crs)
     ax.add_image(google_tiles, 8)
     ax.set_extent([alert_map_info['west_bound'] - 0.5, alert_map_info['east_bound'] + 0.5, 
@@ -140,22 +137,24 @@ def create_map(alert, info):
     ax.add_feature(USCOUNTIES.with_scale('20m'), edgecolor='gray', zorder=5, linewidth=1.2)
     ax.add_feature(cfeature.STATES.with_scale('10m'), linewidth=3, zorder=5)
 
+    # Add radar
+    ax.add_wms(
+        wms='https://mesonet.agron.iastate.edu/cgi-bin/wms/nexrad/n0q-t.cgi?',
+        layers='nexrad-n0q-wmst',
+        wms_kwargs={'transparent':True, 'time': get_radar_timestamp()}, 
+        zorder=4, alpha=0.4)
+
     # Plot alerts on the map
     for key in warning_cmap.keys():
         if key == alert['properties']['event'] and alert['geometry']:
             ax.add_geometries(alert_map_info['polygon'], crs=data_crs, facecolor=warning_cmap[key],
-                              edgecolor='black', linewidth=4, zorder=1, alpha=0.04)
+                              edgecolor='black', linewidth=4, zorder=6, alpha=0.04)
         elif key == alert['properties']['event'] and not alert['geometry']:
             for polys in alert_map_info['polygon']:
                 ax.add_geometries(polys, crs=data_crs, facecolor=warning_cmap[key], edgecolor='black',
                                   linewidth=4,  alpha=0.5, zorder=6)
         else:
             continue
-
-    # Branding
-    logo_dir = Path('.') / 'logos'
-    logo = image.imread(f"{logo_dir}/{Twitter.creds[info]['logo_filename']}")
-    fig.figimage(logo, 1605, 20, zorder=10, alpha=1)
 
     # Set title
     title = ('SIGNIFICANT WEATHER ALERT' if alert['properties']['event'] == 'Special Weather Statement' 

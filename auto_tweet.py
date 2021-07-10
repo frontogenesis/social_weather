@@ -5,15 +5,17 @@ import argparse
 
 from social import Twitter
 from db import Database
+from accounts import creds
 from helpers import convert_to_local, is_alert_active, api_get
 from auto_polygon import create_map
+from banner import upload_and_transform, upload_and_no_transform, cleanup
 
 parser = argparse.ArgumentParser()
 parser.add_argument('-a', '--account', help='Twitter account name')
 args = parser.parse_args()
 
 if args.account:
-    dynamo = Database(Twitter.creds[args.account]['db_table_env_var'])
+    dynamo = Database(creds[args.account]['db_table_env_var'])
     tweet = Twitter(args.account)
 else:
     print('Specify an -a or --account argument')
@@ -46,13 +48,14 @@ def prepare_alert_message(alert):
     
     return message
     
-def get_alerts(usa_state):
-    data = api_get(f"https://api.weather.gov/alerts/active?status=actual&message_type=alert&{Twitter.creds[args.account]['api_endpoint']}")
+def get_alerts(endpoint):
+    data = api_get(f"https://api.weather.gov/alerts/active?status=actual&message_type=alert&{endpoint}")
     alerts = data['features']
     return alerts
 
 def aggregate_message_and_media():
     alerts_of_interest = ['Tornado Warning', 'Severe Thunderstorm Warning', 'Flash Flood Warning']
+
     tweetable_alerts = []
     new_alerts = retrieve_new_alerts()
     new_messages = []
@@ -61,15 +64,17 @@ def aggregate_message_and_media():
     
     if tweetable_alerts:
         for tweetable_alert in tweetable_alerts:
-            create_map(tweetable_alert, args.account)
-            media = tweet.twitter_media_upload('alert_visual.png')
-            new_messages.append({'message': prepare_alert_message(tweetable_alert), 'media': media.media_id})
-    
+            create_map(tweetable_alert)
+            img_url = (
+                upload_and_transform(tweetable_alert['properties']['event']) if creds[args.account]['overlays'] 
+                else upload_and_no_transform())
+            new_messages.append({'message': prepare_alert_message(tweetable_alert), 'media': img_url})
+            
     return new_messages
       
 def retrieve_new_alerts():    
     # Make API call to retrieve alerts    
-    alerts = get_alerts('fl')
+    alerts = get_alerts(creds[args.account]['api_endpoint'])
 
     # Retrieve active alerts from the database
     active_alerts = dynamo.get_all()
@@ -103,10 +108,12 @@ def retrieve_new_alerts():
 def log_alerts_messages():
     [print(f"{message['message'][:270], message['media']}") for message in aggregate_message_and_media()]     
     print(f'{datetime.utcnow()} - Alerts logging ran successfully')
-    
+    cleanup()
+
 def send_tweets_alerts():
-    [tweet.tweet_text_and_media(message['message'], message['media']) for message in aggregate_message_and_media()]
+    [tweet.tweet_image_from_web(message['media'], message['message']) for message in aggregate_message_and_media()]
     print(f'{datetime.utcnow()} - Tweet alert code ran successfully!')
+    cleanup()
 
 if __name__ == '__main__':
     #log_alerts_messages()

@@ -2,55 +2,24 @@ import os
 import requests
 import tweepy
 
-class Twitter:
+from accounts import creds
 
-    creds = {
-        'florida_storms': {
-            'db_table_env_var': 'DYNAMODB_TABLE_FLORIDA',
-            'logo_filename': 'fpren.png',
-            'hashtag': '#FLwx',
-            'api_endpoint': 'area=FL',
-            'consumer_key': os.environ['TWITTER_CONSUMER_KEY_FLORIDA'],
-            'consumer_secret': os.environ['TWITTER_CONSUMER_SECRET_FLORIDA'],
-            'access_token': os.environ['TWITTER_ACCESS_TOKEN_FLORIDA'],
-            'access_token_secret': os.environ['TWITTER_ACCESS_TOKEN_SECRET_FLORIDA']
-        },
-        'palmetto_storms': {
-            'db_table_env_var': 'DYNAMODB_TABLE_PALMETTO',
-            'logo_filename': 'blank.png',
-            'hashtag': '#scwx',
-            'api_endpoint': 'area=SC',
-            'consumer_key': os.environ['TWITTER_CONSUMER_KEY_PALMETTO'],
-            'consumer_secret': os.environ['TWITTER_CONSUMER_SECRET_PALMETTO'],
-            'access_token': os.environ['TWITTER_ACCESS_TOKEN_PALMETTO'],
-            'access_token_secret': os.environ['TWITTER_ACCESS_TOKEN_SECRET_PALMETTO']
-        },
-        'ray_hawthorne': {
-            'db_table_env_var': 'DYNAMODB_TABLE',
-            'logo_filename': 'fpren.png',
-            'hashtag': '#FLwx',
-            'api_endpoint': 'area=FL',
-            'consumer_key': os.environ['TWITTER_CONSUMER_KEY'],
-            'consumer_secret': os.environ['TWITTER_CONSUMER_SECRET'],
-            'access_token': os.environ['TWITTER_ACCESS_TOKEN'],
-            'access_token_secret': os.environ['TWITTER_ACCESS_TOKEN_SECRET']
-        }
-    }
+class Twitter:
 
     def __init__(self, account):
         self.account = account
 
     @property
     def get_hashtag(self):
-        return self.creds.get(self.account)['hashtag']
+        return creds.get(self.account)['hashtag']
     
     @property
     def get_logo_url(self):
         url_prefix = 'https://pbsweather.org/partners/logo/'
-        return f"{url_prefix}{self.creds.get(self.account)['logo_filename']}"
+        return f"{url_prefix}{creds.get(self.account)['logo_filename']}"
 
     def twitter_api(self):
-        api_credentials = self.creds.get(self.account)
+        api_credentials = creds.get(self.account)
 
         auth = tweepy.OAuthHandler(api_credentials['consumer_key'], api_credentials['consumer_secret'])
         auth.set_access_token(api_credentials['access_token'], api_credentials['access_token_secret'])
