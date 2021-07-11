@@ -14,10 +14,12 @@ ugc_county = geopandas.read_file('c_10nv20/c_10nv20.shp')
 
 def is_ugc_county(ugcs):
     '''Determines whether alert type is UGC county or UGC zone'''
+
     return True if ugcs[0][2] == 'C' else False
 
 def ugc_zone_geography(ugcs):
     '''Returns latitudes and longitudes from UGC zone-based alerts'''
+
     counties = [ugc.replace('Z', '') for ugc in ugcs]
 
     latitudes = []
@@ -39,18 +41,36 @@ def ugc_zone_geography(ugcs):
     return latitudes, longitudes, geometries
 
 def ugc_county_geography(ugcs):
-    '''Returns latitudes and longitudes from UGC county-based alerts'''
+    '''
+    Returns latitudes and longitudes from UGC county-based alerts
+
+    The alert contains a UGC county-based code (i.e. FLC025)
+    Thus, the final three digits are stored in the 'counties' variable and
+    the first two in the 'state' variable
+
+    The FIPS code is a 5-digit number. The first two digits are the U.S. state
+    and the second three digits are the county. 
+    
+    Thus, taking the FIPS code modulo 1000 and checking to see if it matches
+    the final three digits from the UGC county-based code from the weather alert
+    will tell you for which counties the weather alert covers.
+    '''
     counties = [int(ugc[-3:]) for ugc in ugcs]
-    state = ugcs[0][0:2]
+    state = [ugc[0:2] for ugc in ugcs]
 
     latitudes = []
     longitudes = []
     geometries = []
     
-    for ugc in counties:
-        latitude = ugc_county.loc[(ugc_county['STATE'] == state) & (ugc_county['FIPS'].astype(int) % 1000 == ugc)]['LAT'].tolist()
-        longitude = ugc_county.loc[(ugc_county['STATE'] == state) & (ugc_county['FIPS'].astype(int) % 1000 == ugc)]['LON'].tolist()
-        geometry = ugc_county.loc[(ugc_county['STATE'] == state) & (ugc_county['FIPS'].astype(int) % 1000 == ugc)]['geometry']
+    for idx, ugc in counties:
+        latitude = ugc_county.loc[(
+            ugc_county['STATE'] == state[idx]) & (
+            ugc_county['FIPS'].astype(int) % 1000 == ugc)]['LAT'].tolist()
+        longitude = ugc_county.loc[(ugc_county['STATE'] == state[idx]) & (
+            ugc_county['FIPS'].astype(int) % 1000 == ugc)]['LON'].tolist()
+        geometry = ugc_county.loc[(
+            ugc_county['STATE'] == state[idx]) & (
+            ugc_county['FIPS'].astype(int) % 1000 == ugc)]['geometry']
         latitudes.append(latitude)
         longitudes.append(longitude)
         geometries.append(geometry)
@@ -63,6 +83,7 @@ def ugc_county_geography(ugcs):
 
 def convert_geojson_to_geopandas_df(alert_geojson):
     '''Returns map bounds for polygon-based NWS alerts'''
+
     alert_geojson['geometry'] = shape(alert_geojson['geometry'])
     gdf = geopandas.GeoDataFrame(alert_geojson).set_geometry('geometry')
     west_bound, south_bound, east_bound, north_bound = gdf['geometry'][0].bounds
@@ -102,8 +123,10 @@ def get_radar_timestamp():
 
 def create_map(alert):
     ''' Create the alert map'''
+
     alert_map_info = (
-        convert_geojson_to_geopandas_df(alert) if alert['geometry'] else calculate_ugc_geography(alert))
+        convert_geojson_to_geopandas_df(alert) if alert['geometry'] 
+        else calculate_ugc_geography(alert))
                 
     warning_cmap = {'Flood Watch': '#2E8B57',
                     'Flash Flood Watch': '#2E8B57',
@@ -130,7 +153,8 @@ def create_map(alert):
     ax = fig.add_axes([0, 0, 1, 1], projection=data_crs)
     ax.add_image(google_tiles, 8)
     ax.set_extent([alert_map_info['west_bound'] - 0.5, alert_map_info['east_bound'] + 0.5, 
-                   alert_map_info['south_bound'] - 0.5, alert_map_info['north_bound'] + 0.6], data_crs)
+                   alert_map_info['south_bound'] - 0.5, alert_map_info['north_bound'] + 0.6], 
+                   data_crs)
     ax.set_adjustable('datalim')
 
     # Setup borders (states, countries, coastlines, etc)

@@ -54,7 +54,9 @@ def get_alerts(endpoint):
     return alerts
 
 def aggregate_message_and_media():
-    alerts_of_interest = ['Tornado Warning', 'Severe Thunderstorm Warning', 'Flash Flood Warning']
+    alerts_of_interest = [
+        'Tornado Warning', 'Severe Thunderstorm Warning', 'Flash Flood Warning',
+        'Tornado Watch', 'Severe Thunderstorm Watch']
 
     tweetable_alerts = []
     new_alerts = retrieve_new_alerts()
