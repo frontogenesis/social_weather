@@ -82,7 +82,7 @@ def cleanup():
     response = resources_by_tag(DEFAULT_TAG)
     resources = response.get('resources', [])
     if not resources:
-        print("No images found")
+        print("Clean Up: All alert images already deleted.")
         return
     print("Deleting {0:d} images...".format(len(resources)))
     delete_resources_by_tag(DEFAULT_TAG)
