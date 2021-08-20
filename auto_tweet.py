@@ -1,25 +1,17 @@
 from decimal import Decimal
 import json
 from datetime import datetime
-import argparse
 
 from social import Twitter
 from db import Database
+from accounts_args import account_info 
 from accounts import creds
 from helpers import convert_to_local, is_alert_active, api_get
 from auto_polygon import create_map
 from banner import upload_and_transform, upload_and_no_transform, cleanup
 
-parser = argparse.ArgumentParser()
-parser.add_argument('-a', '--account', help='Twitter account name')
-args = parser.parse_args()
-
-if args.account:
-    dynamo = Database(creds[args.account]['db_table_env_var'])
-    tweet = Twitter(args.account)
-else:
-    print('Specify an -a or --account argument')
-    exit()
+dynamo = Database(creds[account_info()]['db_table_env_var'])
+tweet = Twitter(account_info())
     
 def prepare_alert_message(alert):
     _id = alert['properties']['id']
