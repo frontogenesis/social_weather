@@ -60,7 +60,7 @@ def aggregate_message_and_media():
         for tweetable_alert in tweetable_alerts:
             create_map(tweetable_alert)
             img_url = (
-                upload_and_transform(tweetable_alert['properties']['event']) if creds[args.account]['overlays'] 
+                upload_and_transform(tweetable_alert['properties']['event']) if creds[account_info()]['overlays'] 
                 else upload_and_no_transform())
             new_messages.append({'message': prepare_alert_message(tweetable_alert), 'media': img_url})
             
@@ -68,7 +68,7 @@ def aggregate_message_and_media():
       
 def retrieve_new_alerts():    
     # Make API call to retrieve alerts    
-    alerts = get_alerts(creds[args.account]['api_endpoint'])
+    alerts = get_alerts(creds[account_info()]['api_endpoint'])
 
     # Retrieve active alerts from the database
     active_alerts = dynamo.get_all()
