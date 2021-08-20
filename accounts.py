@@ -23,6 +23,7 @@ creds = {
         },
         'ray_hawthorne': {
             'db_table_env_var': 'DYNAMODB_TABLE',
+            'db_table_env_var_stories': 'DYNAMODB_TABLE_hazard_stories',
             'hashtag': '#FLwx',
             'api_endpoint': 'area=MO',
             'overlays': True,
@@ -30,5 +31,5 @@ creds = {
             'consumer_secret': os.environ['TWITTER_CONSUMER_SECRET'],
             'access_token': os.environ['TWITTER_ACCESS_TOKEN'],
             'access_token_secret': os.environ['TWITTER_ACCESS_TOKEN_SECRET']
-        }
+        },
     }
