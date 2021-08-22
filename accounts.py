@@ -25,7 +25,7 @@ creds = {
             'db_table_env_var': 'DYNAMODB_TABLE',
             'db_table_env_var_stories': 'DYNAMODB_TABLE_hazard_stories',
             'hashtag': '#FLwx',
-            'api_endpoint': 'area=MO',
+            'api_endpoint': 'area=FL',
             'overlays': True,
             'consumer_key': os.environ['TWITTER_CONSUMER_KEY'],
             'consumer_secret': os.environ['TWITTER_CONSUMER_SECRET'],

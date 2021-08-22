@@ -62,7 +62,7 @@ def ugc_county_geography(ugcs):
     longitudes = []
     geometries = []
     
-    for idx, ugc in counties:
+    for idx, ugc in enumerate(counties):
         latitude = ugc_county.loc[(
             ugc_county['STATE'] == state[idx]) & (
             ugc_county['FIPS'].astype(int) % 1000 == ugc)]['LAT'].tolist()
