@@ -42,6 +42,10 @@ def store_story_metadata_in_db(story):
         'title': story['title']['$text'], 
         'tag': story['parent'][0]['title']['$text']})
 
+def delete_old_story(latest_story, existing_story):
+    if latest_story['id'] != existing_story[0]['id']: 
+        dynamo.delete(existing_story[0]['id'])
+
 def main():
     latest_story = get_latest_story('FPREN')
     existing_story = dynamo.get_all()
@@ -52,6 +56,7 @@ def main():
         return
 
     if not is_story_already_tweeted(latest_story, existing_story):
+        delete_old_story(latest_story, existing_story)
         store_story_metadata_in_db(latest_story)
         send_tweet_story(latest_story)
     
